@@ -5,7 +5,7 @@ from so_interface import SOInterface
 
 
 class SOWell(SOInterface):
-    """ Hidden Markov based model for imputing missing alleles."""
+    """ Hidden Markov based model for prediction of rock porosity."""
 
     ninf = -10.0**15
     start_p = [] # (vector) start probabilities
