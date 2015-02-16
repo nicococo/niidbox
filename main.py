@@ -41,6 +41,11 @@ def split_well_inds(sel_id, well_id):
 
 def normalize(means, var, X):
     return (X-means)/var
+    #for i in range(X.shape[0]):
+    #    X[i,:] -= means
+    #    X[i,:] /= np.linalg.norm(X[i,:], ord=2)
+    return X
+
 
 def make_chunks(lens, add, X, y, well_id):
     Xc = []
@@ -71,7 +76,7 @@ def make_chunks(lens, add, X, y, well_id):
 if __name__=='__main__':
     TEST_WELL = 1
 
-    (well_id, X, y) = load_well_data('facies_simple.csv')
+    (well_id, X, y) = load_well_data('/home/nicococo/Data/WellFacies/facies_simple.csv')
    
     # well indices
     well_inds = []
@@ -107,13 +112,13 @@ if __name__=='__main__':
     for i in range(4):
         if not i+1==TEST_WELL:
             inds = np.where(train_well_id==i+1)[0]
-            (Xta, yta, wta) = make_chunks(95, 5, train_X[inds,:], train_y[inds], train_well_id[inds])
+            (Xta, yta, wta) = make_chunks(95, 15, train_X[inds,:], train_y[inds], train_well_id[inds])
             print len(Xta)
             print Xta[1].size
             Xt.extend(Xta)
             yt.extend(yta)
             wt.extend(wta)
-    (Xtest, ytest, wtest) = make_chunks(95, 5, test_X, test_y, test_well_id)
+    (Xtest, ytest, wtest) = make_chunks(95, 15, test_X, test_y, test_well_id)
 
     print '-------------'
     print len(Xt)

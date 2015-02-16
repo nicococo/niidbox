@@ -22,14 +22,14 @@ class SSVM(object):
         self.sobj = sobj
 
 
-    def train(self, heur_constr=10.4):
+    def train(self, heur_constr=10.4, max_iter=100):
         N = self.sobj.get_num_samples()
         DIMS = self.sobj.get_num_dims()
 
         w = self.sobj.get_hotstart_sol()
 
-        slacks = [0.0**1.0]*N
-        sol = matrix([[w.trans()],[matrix(slacks,(1,N))]]).trans()
+        slacks = matrix(0.0, (1,N))
+        sol = matrix([[w.trans()],[slacks]]).trans()
 
         # quadratic regularizer
         P = spdiag(matrix([[matrix(0.0,(1,N))],[matrix(1.0,(1,DIMS))]]))
@@ -46,7 +46,7 @@ class SSVM(object):
 
         iter = 0
         newConstr = N
-        while (newConstr>0 and iter<80):
+        while (newConstr>0 and iter<max_iter):
 
             newConstr=0
             for i in range(N):
@@ -106,7 +106,7 @@ class SSVM(object):
         vals = []
         structs = []
         for i in range(N):
-            (val, struct, foo) = pred_sobj.argmax(self.w, i)
+            (val, struct, foo) = pred_sobj.argmax(self.w, i, add_loss=False)
             vals.append(val)
             structs.append(struct)
         return (vals, structs)
