@@ -237,3 +237,118 @@ class LatentRidgeRegression2(LatentRidgeRegression):
             vals[i] += self.intercept
             structs.append(struct)
         return vals, structs
+
+
+
+
+class LatentRidgeRegression3(LatentRidgeRegression):
+    """ Latent Variable Ridge Regression.
+        Written by Nico Goernitz, TU Berlin, 2015
+    """
+    cls = None
+
+    def __init__(self, sobj, l=0.001):
+        LatentRidgeRegression.__init__(self, sobj, l)
+        self.cls = []
+
+    def train_dc(self, max_iter=50, hotstart=matrix([])):
+        runs = 10
+        obj = 1e14
+
+        best_cls = 0
+        best_sol = 0
+        best_lats = []
+        for i in range(runs):
+            (sol, cls, n_lat, n_obj, is_converged) = self.train_dc_single(max_iter=max_iter)
+
+            if is_converged and np.single(obj) > np.single(n_obj):
+                best_cls = cls
+                best_sol = sol
+                best_lats = n_lat
+                obj = n_obj
+
+            if not is_converged and i == 0:
+                best_cls = cls
+                best_sol = sol
+                best_lats = n_lat
+
+        self.sol = best_sol
+        self.cls = best_cls
+        return best_sol, best_lats
+
+    def train_dc_single(self, max_iter=50, hotstart=matrix([])):
+        N = self.sobj.get_num_samples()
+        DIMS = self.sobj.get_num_dims()
+        # intermediate solutions
+        # latent variables
+        latent = [0.0]*N
+        self.sol = self.sobj.get_hotstart_sol()
+        if hotstart.size==(DIMS,1):
+            print('New hotstart position defined.')
+            self.sol = hotstart
+        psi = matrix(0.0, (DIMS,N)) # (dim x exm)
+        old_psi = matrix(0.0, (DIMS,N)) # (dim x exm)
+
+        obj = 1e09
+        old_obj = 1e10
+        rel = 1
+        iter = 0
+        is_converged = False
+        # terminate if objective function value doesn't change much
+        while iter < max_iter and not is_converged:
+            # 1. linearize
+            # for the current solution compute the
+            # most likely latent variable configuration
+            for i in range(N):
+                (foo, lat, psi[:, i]) = self.sobj.argmax(self.sol, i, add_prior=True)
+                latent[i] = lat
+
+            l = 0.001  # scalar
+            self.sol = matrix(1.0/(float(N)*l) * np.sum(psi, axis=1))
+            # calc objective function:
+            w = self.sol  # (dims x 1)
+            b = matrix(1.0, (N, 1))  # (exms x 1)
+            phi = psi  # (dims x exms)
+            old_obj = obj
+            obj = np.single(l/2.0*w.trans()*w - 1.0/float(N)*w.trans()*phi*b)
+            rel = np.abs((old_obj - obj)/obj)
+            print('Iter {0} objective={1:4.2f}  rel={2:2.4f}'.format(iter, obj[0, 0], rel[0, 0]))
+            print np.unique(latent)
+
+            if iter > 3 and rel < 0.0001:
+                is_converged = True
+            iter += 1
+
+        # 2. Solve the intermediate optimization problem
+        vecy = np.array(matrix(self.sobj.y))[:,0]
+        vecX = np.array(psi.trans())
+        self.cls = self.train_model(vecX, vecy)
+
+        # calc objective function:
+        w = self.cls  # (dims x 1)
+        l = self.reg  # scalar
+        b = self.sobj.y  # (exms x 1)
+        phi = psi  # (dims x exms)
+        obj = l*w.trans()*w + b.trans()*b - 2.0*w.trans()*phi*b + w.trans()*phi*phi.trans()*w
+        print('Overall objective={1:4.2f}  rel={2:2.4f}'.format(iter, obj[0, 0], rel[0, 0]))
+
+        print np.unique(latent)
+        return self.sol, self.cls, latent, obj, is_converged
+
+    def apply(self, pred_sobj):
+        """ Application of the Latent Ridge Regression:
+
+            score = max_z <sol*,\Psi(x,z)>
+            latent_state = argmax_z <sol*,\Psi(x,z)>
+        """
+        N = pred_sobj.get_num_samples()
+        vals = matrix(0.0, (N, 1))
+        structs = []
+        for i in range(N):
+            (vals[i], struct, psi) = pred_sobj.argmax(self.sol, i, add_prior=False)
+
+            vals[i] = self.cls.trans() * psi
+
+            vals[i] += self.intercept
+            structs.append(struct)
+        return vals, structs

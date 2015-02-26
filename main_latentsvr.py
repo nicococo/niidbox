@@ -8,7 +8,7 @@ from sklearn.datasets import load_svmlight_file
 import sklearn.cluster as cl
 
 from latent_svr import LatentSvr
-from latent_ridge import LatentRidgeRegression, LatentRidgeRegression2 
+from latent_ridge import LatentRidgeRegression, LatentRidgeRegression2, LatentRidgeRegression3
 from so_multiclass import SOMultiClass
 
 
@@ -125,7 +125,7 @@ def single_run(vecX, vecy, states=2, plot=False):
     hotstart = trainMC.get_hotstart_sol()
 
     # train latent support vector regression
-    lsvr =LatentRidgeRegression(trainMC, l=0.00001)
+    lsvr =LatentRidgeRegression3(trainMC, l=0.00001)
     (foo, lats) = lsvr.train_dc(max_iter=100, hotstart=hotstart)
     (y_pred2, lats) = lsvr.apply(testMC)
     y_pred2 = np.array(y_pred2)
@@ -134,15 +134,18 @@ def single_run(vecX, vecy, states=2, plot=False):
     print np.unique(lats)
     lrr_mse = mean_squared_error(vecy[test], y_pred2)
 
+    y_pred3 = y_pred2
+    lrr2_mse = lrr_mse
+
     # train latent support vector regression 2
-    lsvr =LatentRidgeRegression2(trainMC, l=0.00001)
-    (foo, lats2) = lsvr.train_dc(max_iter=100, hotstart=hotstart)
-    (y_pred3, lats2) = lsvr.apply(testMC)
-    y_pred3 = np.array(y_pred3)
-    lats2 = np.array(lats2)
-    print 'latent test variables 2'
-    print np.unique(lats2)
-    lrr2_mse = mean_squared_error(vecy[test], y_pred3)
+    # lsvr =LatentRidgeRegression3(trainMC, l=0.00001)
+    # (foo, lats2) = lsvr.train_dc(max_iter=100, hotstart=hotstart)
+    # (y_pred3, lats2) = lsvr.apply(testMC)
+    # y_pred3 = np.array(y_pred3)
+    # lats2 = np.array(lats2)
+    # print 'latent test variables 2'
+    # print np.unique(lats2)
+    # lrr2_mse = mean_squared_error(vecy[test], y_pred3)
 
     kmeans = cl.KMeans(n_clusters=states, init='k-means++', n_init=10, max_iter=100, tol=0.0001)
     kmeans.fit(vecX[train, :])
@@ -216,10 +219,10 @@ if __name__=='__main__':
 
     #single_run(vecX, vecy, states=2, plot=True)
     #single_run(vecX, vecy, states=4, plot=True)
-    single_run(vecX, vecy, states=8, plot=True)
+    single_run(vecX, vecy, states=20, plot=True)
 
-    REPS = 4
-    states = [1, 2, 4, 8]
+    REPS = 10
+    states = [1, 2, 4, 8, 12, 20, 30]
     #states = [1,2,4]
     mse = {}
     for s in range(len(states)):
