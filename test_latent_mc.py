@@ -83,7 +83,7 @@ def single_run(vecX, vecy, states=2, plot=False):
     test_mc = SOMultiClass(co.matrix(vecX[test, :].T), classes=states)
 
     # train latent support vector regression
-    lsvr = LatentRidgeRegression(train_mc, l=0.00001/states, gamma=1.0)
+    lsvr = LatentRidgeRegression(train_mc, l=0.00001, gamma=1.0)
     _, _ = lsvr.train_dc(max_iter=100)
     (y_pred_lrr, lats) = lsvr.apply(test_mc)
     y_pred_lrr = np.array(y_pred_lrr)
@@ -117,15 +117,24 @@ def single_run(vecX, vecy, states=2, plot=False):
 
     if plot:
         # sinds = np.argsort(test)
+        plt.figure(1)
+        plt.subplot(1, 3, 1)
         sinds = np.argsort(vecy[test])
         truth = vecy[test[sinds]]
-        plt.plot(range(test.size), vecX[test[sinds],0], 'og', alpha=0.4, markersize=6.0)
-        plt.plot(range(test.size), y_pred_rr[sinds], 'oc', alpha=0.4, markersize=6.0)
-        plt.plot(range(test.size), y_pred_krr[sinds], 'Dk', alpha=0.6, markersize=10.0)
-        plt.plot(range(test.size), y_pred_lrr[sinds], 'ob', alpha=0.6, markersize=10.0)
-
-        plt.plot(range(test.size), 2.0*lats[sinds]-1.0, '-k', linewidth=2.0)
+        plt.plot(range(test.size), y_pred_rr[sinds], 'oc', alpha=0.6, markersize=6.0)
+        plt.plot(range(test.size), y_pred_krr[sinds], 'om', alpha=0.6, markersize=6.0)
+        plt.plot(range(test.size), y_pred_svr[sinds], 'oy', alpha=0.6, markersize=6.0)
+        plt.plot(range(test.size), y_pred_lrr[sinds], 'ob', alpha=0.6, markersize=6.0)
         plt.plot(range(test.size), truth, 'or', markersize=7.0, alpha=0.6)
+
+        plt.subplot(1, 3, 2)
+        plt.plot(range(test.size), 2.0*lats[sinds]-1.0, '-k', linewidth=2.0)
+        plt.plot(range(test.size), vecX[test[sinds], 0], 'og', alpha=0.4, markersize=6.0)
+        plt.plot(range(test.size), truth, 'or', markersize=7.0, alpha=0.6)
+
+        plt.subplot(1, 3, 3)
+        plt.plot(truth, vecX[test[sinds], 0], 'or', alpha=0.4, markersize=6.0)
+        plt.plot(y_pred_lrr, vecX[test[sinds], 0], 'ob', alpha=0.4, markersize=6.0)
 
         plt.legend(['Inputs', 'RR', 'Kmeans RR', 'LatentRR', 'States', 'True Labels'], loc=2)
         plt.show()
@@ -137,7 +146,7 @@ if __name__ == '__main__':
     # (vecX, vecy) = load_svmlight_data('/home/nicococo/Data/housing_scale.dat')
     # (vecX, vecy) = load_svmlight_data('/home/nicococo/Data/space_ga_scale.dat')
     # (vecX, vecy) = load_svmlight_data('/home/nicococo/Data/mg_scale.dat')
-    (vecX, vecy) = load_svmlight_data('/home/nicococo/Data/mpg_scale.dat')
+    # (vecX, vecy) = load_svmlight_data('/home/nicococo/Data/mpg_scale.dat')
     # (vecX, vecy) = load_svmlight_data('/home/nicococo/Data/usps')
     # inds = np.where((vecy==8.0) | (vecy==1.0))[0]
     # vecX = vecX[inds,:]
@@ -145,7 +154,7 @@ if __name__ == '__main__':
     # (vecX, vecy) = load_svmlight_data('/home/nicococo/Data/YearPredictionMSD.t')
     # vecX = vecX[:8000, :]
     # vecy = vecy[:8000]
-    # (vecX, vecy) = get_1d_toy_data()
+    (vecX, vecy) = get_1d_toy_data()
 
     # normalize data
     vecy = vecy-np.mean(vecy)
@@ -161,7 +170,7 @@ if __name__ == '__main__':
 
     # single_run(vecX, vecy, states=2, plot=True)
     # single_run(vecX, vecy, states=4, plot=True)
-    single_run(vecX, vecy, states=6, plot=True)
+    single_run(vecX, vecy, states=5, plot=True)
 
     # REPS = 4
     # states = [1, 2, 8, 12, 20]

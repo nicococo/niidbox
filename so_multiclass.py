@@ -17,7 +17,7 @@ class SOMultiClass(SOInterface):
 
     def get_hotstart_sol(self): 
         print('Generate a random solution vector for hot start.')
-        return 10.0*normal(self.get_num_dims(), 1)
+        return 1.0*normal(self.get_num_dims(), 1)
 
     def argmax(self, sol, idx, add_loss=False, add_prior=False, opt_type='linear'):
         # opt_type = 'quadratic':

@@ -7,13 +7,13 @@ class LatentRidgeRegression(object):
         Written by Nico Goernitz, TU Berlin, 2015
     """
     reg = 0.001  # (scalar) the regularization constant > 0
-    gamma = 0.001  # density estimation regularizer
+    gamma = 1.0  # density estimation regularizer
     sobj = None
     sol = None
-    intercept = 0.0
     cls = None  # regression
+    intercept = 0.0
 
-    def __init__(self, sobj, l=0.001, gamma=0.1):
+    def __init__(self, sobj, l=0.001, gamma=1.0):
         self.cls = []
         self.reg = l
         self.gamma = gamma
