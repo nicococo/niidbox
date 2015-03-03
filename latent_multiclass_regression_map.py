@@ -1,5 +1,5 @@
 import numpy as np
-from cvxopt import matrix, normal
+from cvxopt import matrix, normal, mul
 
 from so_interface import SOInterface
 
@@ -22,14 +22,28 @@ class LatentMulticlassRegressionMap(SOInterface):
         print('Generate a random solution vector for hot start.')
         return 1.0*normal(self.get_num_dims(), 1)
 
-    def argmax(self, sol, idx, add_loss=False, add_prior=False):
+    def argmax(self, sol, idx=-1, add_loss=False, add_prior=False):
         # opt_type = 'quadratic':
         # the argmax is equal to the argmax of the linear function
         # foo = -normSol + 2*foo - normPsi
         # since ||\Psi(x_i,z)|| = ||\phi(x_i)|| = y \forall z
         # and normSol is also constant
-        w = matrix(np.array(sol).reshape(self.feats, self.num_classes))
-        foo = w.trans()*self.X[:, idx]
+        if isinstance(sol, list):
+            sol_v = sol[0]
+            sol_u = sol[1]
+
+            v = matrix(np.array(sol_v).reshape(self.feats, self.num_classes))
+            f_density = v.trans()*self.X[:, idx]
+
+            u = matrix(np.array(sol_u).reshape(self.feats, self.num_classes))
+            f_squares = self.y[idx] - u.trans()*self.X[:, idx]
+            f_squares = mul(f_squares, f_squares)
+
+            foo = f_density - f_squares
+        else:
+            v = matrix(np.array(sol).reshape(self.feats, self.num_classes))
+            f_density = v.trans()*self.X[:, idx]
+            foo = f_density
 
         # highest value first
         inds = np.argsort(-foo, axis=0)[0]

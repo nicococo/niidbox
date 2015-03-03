@@ -32,7 +32,7 @@ def get_1d_toy_data(plot_data=False):
     # inputs  x
     x = 4.0*np.sign(z-0.5)*gx + 1.0*np.sign(z-0.5) +  0.5*np.random.randn(grid_x)
     # ..and corresponding target value y
-    y = (np.sign(z-0.5)*10.1)*x + 0.01*np.random.randn(grid_x)
+    y = (np.sign(z-0.5)*4.1)*x + 0.01*np.random.randn(grid_x)
 
     vecX = x.reshape(grid_x, 1)
     vecy = y.reshape(grid_x)
@@ -74,7 +74,7 @@ def single_run(vecX, vecy, states=2, plot=False):
     rr_mse = mean_squared_error(vecy[test], y_pred_rr)
 
     # train ordinary support vector regression
-    clf = SVR(C=1.0, epsilon=0.0, kernel='linear', shrinking=False)
+    clf = SVR(C=1.0, epsilon=0.1, kernel='linear', shrinking=False)
     clf.fit(vecX[train, :], vecy[train])
     y_pred_svr = clf.predict(vecX[test, :])
     svr_mse = mean_squared_error(vecy[test], y_pred_svr)
@@ -83,8 +83,8 @@ def single_run(vecX, vecy, states=2, plot=False):
     test_mc = LatentMulticlassRegressionMap(co.matrix(vecX[test, :].T), classes=states)
 
     # train latent support vector regression
-    lsvr = LatentRidgeRegression(train_mc, l=0.00001, gamma=1.0)
-    _, _ = lsvr.train_dc(max_iter=100)
+    lsvr = LatentRidgeRegression(train_mc, l=0.00001, gamma=4.3)
+    _, _ = lsvr.train_dc(max_iter=200)
     (y_pred_lrr, lats) = lsvr.apply(test_mc)
     y_pred_lrr = np.array(y_pred_lrr)
     lats = np.array(lats)
@@ -178,7 +178,7 @@ if __name__ == '__main__':
 
     # single_run(vecX, vecy, states=2, plot=True)
     # single_run(vecX, vecy, states=4, plot=True)
-    single_run(vecX, vecy, states=2, plot=True)
+    single_run(vecX, vecy, states=4, plot=True)
 
     # REPS = 4
     # states = [1, 2, 8, 12, 20]

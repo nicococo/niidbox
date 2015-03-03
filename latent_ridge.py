@@ -20,7 +20,7 @@ class LatentRidgeRegression(object):
         self.sobj = sobj
 
     def train_dc(self, max_iter=50):
-        runs = 10
+        runs = 1
         obj = 1e14
         best_cls = 0
         best_sol = 0
@@ -44,6 +44,7 @@ class LatentRidgeRegression(object):
         n = self.sobj.get_num_samples()
         dims = self.sobj.get_num_dims()
         self.sol = self.sobj.get_hotstart_sol()
+        self.cls = self.sobj.get_hotstart_sol()
         if hotstart is not None and hotstart.size == (dims, 1):
             print('New hotstart position defined.')
             self.sol = hotstart
@@ -59,35 +60,35 @@ class LatentRidgeRegression(object):
             # 1. linearize
             # for the current solution compute the most likely latent variable configuration
             for i in range(n):
-                (foo, latent[i], psi[:, i]) = self.sobj.argmax(self.sol, i, add_prior=True, add_loss=True)
-            print np.unique(latent)
+                (foo, latent[i], psi[:, i]) = self.sobj.argmax([self.sol, self.cls], i, add_prior=True, add_loss=True)
 
             self.sol = matrix(1.0/(float(n)*self.gamma) * np.sum(psi, axis=1))
             # calc objective function:
             w = self.sol  # (dims x 1)
             b = matrix(1.0, (n, 1))  # (exms x 1)
             phi = psi  # (dims x exms)
+            obj_de = np.single(self.gamma/2.0*w.trans()*w - 1.0/float(n)*w.trans()*phi*b)
+            print('Iter {0} density objective={1:4.2f}'.format(iter, obj_de[0, 0]))
+
+            # Solve the regression problem
+            vecy = np.array(matrix(self.sobj.y))[:, 0]
+            vecX = np.array(psi.trans())
+            self.cls = self.train_model(vecX, vecy)
+            # calc objective function:
+            w = self.cls  # (dims x 1)
+            l = self.reg  # scalar
+            b = self.sobj.y  # (exms x 1)
+            phi = psi  # (dims x exms)
             old_obj = obj
-            obj = np.single(self.gamma/2.0*w.trans()*w - 1.0/float(n)*w.trans()*phi*b)
+            obj = l*w.trans()*w + b.trans()*b - 2.0*w.trans()*phi*b + w.trans()*phi*phi.trans()*w
             rel = np.abs((old_obj - obj)/obj)
-            print('Iter {0} objective={1:4.2f}  rel={2:2.4f}'.format(iter, obj[0, 0], rel[0, 0]))
+            print('       least squares objective={1:4.2f}  rel={2:2.4f}'.format(iter, obj[0, 0], rel[0, 0]))
             print np.unique(latent)
+
             if iter > 3 and rel < 0.0001:
                 is_converged = True
             iter += 1
 
-        # Solve the regression problem
-        vecy = np.array(matrix(self.sobj.y))[:, 0]
-        vecX = np.array(psi.trans())
-        self.cls = self.train_model(vecX, vecy)
-        # calc objective function:
-        w = self.cls  # (dims x 1)
-        l = self.reg  # scalar
-        b = self.sobj.y  # (exms x 1)
-        phi = psi  # (dims x exms)
-        obj = l*w.trans()*w + b.trans()*b - 2.0*w.trans()*phi*b + w.trans()*phi*phi.trans()*w
-        print('Overall objective={1:4.2f}  rel={2:2.4f}'.format(iter, obj[0, 0], rel[0, 0]))
-        print np.unique(latent)
         return self.sol, self.cls, latent, obj, is_converged
 
     def train_model(self, vecX, vecy):
