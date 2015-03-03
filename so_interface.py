@@ -35,18 +35,17 @@ class SOInterface(object):
     def get_num_feats(self):
         return self.feats
 
-    def argmax(self, sol, idx=-1, add_loss=False, add_prior=False, opt_type='linear'):
+    def argmax(self, sol, idx=-1, add_loss=False, add_prior=False):
         """
         :param sol: parameter vector
         :param idx: index of example or -1 for all examples (default)
         :param add_loss: add a structured loss
         :param add_prior: add prior knowledge
-        :param opt_type: linear (default) or quadratic
         :return: value(s), structure(s), joint feature map(s)
         """
         pass
         
-    def logsumexp(self, sol, idx, add_loss=False, add_prior=False, opt_type='linear'): 
+    def logsumexp(self, sol, idx, add_loss=False, add_prior=False):
         pass
 
     def calc_loss(self, idx, y): 

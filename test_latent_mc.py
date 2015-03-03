@@ -9,7 +9,7 @@ import sklearn.cluster as cl
 
 from latent_svr import LatentSvr
 from latent_ridge import LatentRidgeRegression
-from so_multiclass import SOMultiClass
+from latent_multiclass_regression_map import LatentMulticlassRegressionMap
 
 
 def load_svmlight_data(fname):
@@ -79,8 +79,8 @@ def single_run(vecX, vecy, states=2, plot=False):
     y_pred_svr = clf.predict(vecX[test, :])
     svr_mse = mean_squared_error(vecy[test], y_pred_svr)
 
-    train_mc = SOMultiClass(co.matrix(vecX[train, :].T), classes=states, y=co.matrix(vecy[train]))
-    test_mc = SOMultiClass(co.matrix(vecX[test, :].T), classes=states)
+    train_mc = LatentMulticlassRegressionMap(co.matrix(vecX[train, :].T), classes=states, y=co.matrix(vecy[train]))
+    test_mc = LatentMulticlassRegressionMap(co.matrix(vecX[test, :].T), classes=states)
 
     # train latent support vector regression
     lsvr = LatentRidgeRegression(train_mc, l=0.00001, gamma=1.0)
@@ -126,17 +126,25 @@ def single_run(vecX, vecy, states=2, plot=False):
         plt.plot(range(test.size), y_pred_svr[sinds], 'oy', alpha=0.6, markersize=6.0)
         plt.plot(range(test.size), y_pred_lrr[sinds], 'ob', alpha=0.6, markersize=6.0)
         plt.plot(range(test.size), truth, 'or', markersize=7.0, alpha=0.6)
+        plt.xlabel('Example')
+        plt.ylabel('Output')
+        plt.legend(['Inputs', 'RR', 'Kmeans RR', 'LatentRR', 'States', 'True Labels'], loc=2)
 
         plt.subplot(1, 3, 2)
         plt.plot(range(test.size), 2.0*lats[sinds]-1.0, '-k', linewidth=2.0)
         plt.plot(range(test.size), vecX[test[sinds], 0], 'og', alpha=0.4, markersize=6.0)
         plt.plot(range(test.size), truth, 'or', markersize=7.0, alpha=0.6)
+        plt.xlabel('Example')
+        plt.ylabel('Value')
+        plt.legend(['States', 'Inputs', 'True Outputs'], loc=2)
 
         plt.subplot(1, 3, 3)
-        plt.plot(truth, vecX[test[sinds], 0], 'or', alpha=0.4, markersize=6.0)
-        plt.plot(y_pred_lrr, vecX[test[sinds], 0], 'ob', alpha=0.4, markersize=6.0)
+        plt.plot(vecX[test[sinds], 0], truth, 'or', alpha=0.4, markersize=6.0)
+        plt.plot(vecX[test[sinds], 0], y_pred_lrr, 'ob', alpha=0.4, markersize=6.0)
+        plt.xlabel('Inputs')
+        plt.ylabel('Outputs')
+        plt.legend(['Inputs', 'LRR'], loc=2)
 
-        plt.legend(['Inputs', 'RR', 'Kmeans RR', 'LatentRR', 'States', 'True Labels'], loc=2)
         plt.show()
 
     return rr_mse, svr_mse, krr_mse, lrr_mse
@@ -170,7 +178,7 @@ if __name__ == '__main__':
 
     # single_run(vecX, vecy, states=2, plot=True)
     # single_run(vecX, vecy, states=4, plot=True)
-    single_run(vecX, vecy, states=5, plot=True)
+    single_run(vecX, vecy, states=2, plot=True)
 
     # REPS = 4
     # states = [1, 2, 8, 12, 20]

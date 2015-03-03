@@ -4,8 +4,11 @@ from cvxopt import matrix, normal
 from so_interface import SOInterface
 
 
-class SOMultiClass(SOInterface):
-    """ Multi class structured object. """
+class LatentMulticlassRegressionMap(SOInterface):
+    """ Latent Multi-class Regression Map.
+        Number of latent classes must be set in advance.
+        Target values 'y' are continuous regression targets.
+    """
     num_classes = -1  # (scalar) number of classes
 
     def __init__(self, X, classes, y=None):
@@ -19,7 +22,7 @@ class SOMultiClass(SOInterface):
         print('Generate a random solution vector for hot start.')
         return 1.0*normal(self.get_num_dims(), 1)
 
-    def argmax(self, sol, idx, add_loss=False, add_prior=False, opt_type='linear'):
+    def argmax(self, sol, idx, add_loss=False, add_prior=False):
         # opt_type = 'quadratic':
         # the argmax is equal to the argmax of the linear function
         # foo = -normSol + 2*foo - normPsi
@@ -35,9 +38,6 @@ class SOMultiClass(SOInterface):
 
         psi_idx = self.get_joint_feature_map(idx, cls)
         return val, cls, psi_idx
-
-    def calc_loss(self, idx, y):
-        return self.y[idx] != y
 
     def get_joint_feature_map(self, idx, y=None):
         if y is None:

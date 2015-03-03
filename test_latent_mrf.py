@@ -9,7 +9,7 @@ import sklearn.cluster as cl
 
 from latent_svr import LatentSvr
 from latent_ridge import LatentRidgeRegression, LatentRidgeRegression2, LatentRidgeRegression3
-from so_multiclass import SOMultiClass
+from latent_multiclass_regression_map import LatentMulticlassRegressionMap
 
 
 def get_2D_toy_data():
@@ -76,8 +76,8 @@ def single_run(vecX, vecy, states=2, plot=False):
     #print clf.intercept_
     #y_pred = clf.predict(vecX[test,:])
 
-    trainMC = SOMultiClass(co.matrix(vecX[train, :].T), classes=states, y=co.matrix(vecy[train]))
-    testMC = SOMultiClass(co.matrix(vecX[test, :].T), classes=states)
+    trainMC = LatentMulticlassRegressionMap(co.matrix(vecX[train, :].T), classes=states, y=co.matrix(vecy[train]))
+    testMC = LatentMulticlassRegressionMap(co.matrix(vecX[test, :].T), classes=states)
 
     # train latent support vector regression
     lsvr =LatentRidgeRegression3(trainMC, l=0.00001/states)
