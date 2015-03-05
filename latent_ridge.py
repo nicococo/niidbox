@@ -20,14 +20,15 @@ class LatentRidgeRegression(object):
         self.sobj = sobj
 
     def train_dc(self, max_iter=50):
-        runs = 1
+        runs = 10
         obj = 1e14
         best_cls = 0
         best_sol = 0
         best_lats = []
         for i in range(runs):
             (sol, cls, n_lat, n_obj, is_converged) = self.train_dc_single(max_iter=max_iter)
-            if is_converged and np.single(obj) > np.single(n_obj):
+            # if is_converged and np.single(obj) > np.single(n_obj):
+            if np.single(obj) > np.single(n_obj):
                 best_cls = cls
                 best_sol = sol
                 best_lats = n_lat
@@ -55,6 +56,12 @@ class LatentRidgeRegression(object):
         rel = 1
         iter = 0
         is_converged = False
+
+        best_obj = 1e14
+        best_cls = 0
+        best_sol = 0
+        best_lats = []
+
         # terminate if objective function value doesn't change much
         while iter < max_iter and not is_converged:
             # 1. linearize
@@ -68,7 +75,6 @@ class LatentRidgeRegression(object):
             b = matrix(1.0, (n, 1))  # (exms x 1)
             phi = psi  # (dims x exms)
             obj_de = np.single(self.gamma/2.0*w.trans()*w - 1.0/float(n)*w.trans()*phi*b)
-            print('Iter {0} density objective={1:4.2f}'.format(iter, obj_de[0, 0]))
 
             # Solve the regression problem
             vecy = np.array(matrix(self.sobj.y))[:, 0]
@@ -80,15 +86,25 @@ class LatentRidgeRegression(object):
             b = self.sobj.y  # (exms x 1)
             phi = psi  # (dims x exms)
             old_obj = obj
-            obj = l*w.trans()*w + b.trans()*b - 2.0*w.trans()*phi*b + w.trans()*phi*phi.trans()*w
+            obj = l*w.trans()*w + b.trans()*b - 2.0*w.trans()*phi*b + w.trans()*phi*phi.trans()*w + obj_de
             rel = np.abs((old_obj - obj)/obj)
-            print('       least squares objective={1:4.2f}  rel={2:2.4f}'.format(iter, obj[0, 0], rel[0, 0]))
+            print('Iter={0} combined objective={1:4.2f} rel={2:2.4f}'.format(iter, obj[0, 0], rel[0, 0]))
             print np.unique(latent)
+
+            if np.single(best_obj) > np.single(obj):
+                best_cls = self.cls
+                best_sol = self.sol
+                best_lats = latent
+                best_obj = obj
 
             if iter > 3 and rel < 0.0001:
                 is_converged = True
             iter += 1
 
+        self.cls = best_cls
+        self.sol = best_sol
+        latent = best_lats
+        obj = best_obj
         return self.sol, self.cls, latent, obj, is_converged
 
     def train_model(self, vecX, vecy):
@@ -108,10 +124,11 @@ class LatentRidgeRegression(object):
             score = max_z <sol*,\Psi(x,z)>
             latent_state = argmax_z <sol*,\Psi(x,z)>
         """
-        N = pred_sobj.get_num_samples()
-        vals = matrix(0.0, (N, 1))
+        samples = pred_sobj.get_num_samples()
+        vals = matrix(0.0, (samples, 1))
         structs = []
-        for i in range(N):
+        for i in range(samples):
+            # (foo, struct, psi) = pred_sobj.argmax([self.sol, self.cls], i, add_prior=False)
             (foo, struct, psi) = pred_sobj.argmax(self.sol, i, add_prior=False)
             vals[i] = self.cls.trans() * psi + self.intercept
             structs.append(struct)

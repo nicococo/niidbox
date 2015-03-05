@@ -31,17 +31,20 @@ class LatentMulticlassRegressionMap(SOInterface):
         if isinstance(sol, list):
             sol_v = sol[0]
             sol_u = sol[1]
+            target = 0.0
+            if self.y is not None:
+                target = self.y[idx]
 
-            v = matrix(np.array(sol_v).reshape(self.feats, self.num_classes))
+            v = matrix(np.array(sol_v).reshape((self.feats, self.num_classes), order='F'))
             f_density = v.trans()*self.X[:, idx]
 
-            u = matrix(np.array(sol_u).reshape(self.feats, self.num_classes))
-            f_squares = self.y[idx] - u.trans()*self.X[:, idx]
+            u = matrix(np.array(sol_u).reshape((self.feats, self.num_classes), order='F'))
+            f_squares = target - u.trans()*self.X[:, idx]
             f_squares = mul(f_squares, f_squares)
 
             foo = f_density - f_squares
         else:
-            v = matrix(np.array(sol).reshape(self.feats, self.num_classes))
+            v = matrix(np.array(sol).reshape((self.feats, self.num_classes), order='F'))
             f_density = v.trans()*self.X[:, idx]
             foo = f_density
 
