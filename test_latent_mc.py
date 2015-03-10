@@ -188,9 +188,10 @@ if __name__ == '__main__':
     # (vecX, vecy) = load_svmlight_data('/home/nicococo/Data/mg_scale.dat')
     # (vecX, vecy) = load_svmlight_data('/home/nicococo/Data/mpg_scale.dat')
     # (vecX, vecy) = load_svmlight_data('/home/nicococo/Data/usps')
-    # inds = np.where((vecy==8.0) | (vecy==1.0))[0]
-    # vecX = vecX[inds,:]
-    # vecy = vecy[inds]
+    # inds = np.where((vecy == 8.0) | (vecy == 1.0))[0]
+    # inds = np.random.permutation(inds)
+    # vecy = vecy[inds[:1000]]
+    # vecX = vecX[inds[:1000], :]
     # (vecX, vecy) = load_svmlight_data('/home/nicococo/Data/YearPredictionMSD.t')
     # vecX = vecX[:8000, :]
     # vecy = vecy[:8000]

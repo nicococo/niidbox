@@ -10,6 +10,8 @@ class SOInterface(object):
     samples = -1  # (scalar) number of training data samples
     feats = -1    # (scalar) number of features != get_num_dims() !!!
 
+    sol = None  # (vector) solution vector
+
     isListOfObjects = True  # X is either list-of-objects or co.matrix
 
     def __init__(self, X, y=None):
@@ -35,7 +37,10 @@ class SOInterface(object):
     def get_num_feats(self):
         return self.feats
 
-    def argmax(self, sol, idx=-1, add_loss=False, add_prior=False):
+    def update_solution(self, sol):
+        self.sol = sol
+
+    def argmax(self, idx=-1, add_loss=False, add_prior=False):
         """
         :param sol: parameter vector
         :param idx: index of example or -1 for all examples (default)
@@ -45,7 +50,7 @@ class SOInterface(object):
         """
         pass
         
-    def logsumexp(self, sol, idx, add_loss=False, add_prior=False):
+    def logsumexp(self, idx, add_loss=False, add_prior=False):
         pass
 
     def calc_loss(self, idx, y): 

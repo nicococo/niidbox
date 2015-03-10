@@ -50,7 +50,7 @@ class LatentMrf(SOInterface):
         sol_init = 1.0*normal(self.get_num_dims(), 1)
         return sol_init
 
-    def simple_max(self, sol):
+    def simple_max(self, v, u=None):
         """ Find the MAP and the log-partition function for 2-state models by exhaustive search. This
             method serves as a sanity check. Do not use this method for real applications!
         """
@@ -71,8 +71,10 @@ class LatentMrf(SOInterface):
                 if comb[s] == '1':
                     states[s] = 1
             # check objective function
-            psi = self.get_joint_feature_map( states)
-            obj = np.single(sol.trans()*psi)
+            psi = self.get_joint_feature_map(states)
+            obj = np.single(v.trans()*psi)
+            if u is not None:
+                obj -= np.single(u.trans()*psi*psi.trans()*u)
             # print 'Iter(', i, ') has obj=', obj
 
             if obj > max_obj:
@@ -82,7 +84,6 @@ class LatentMrf(SOInterface):
 
             if obj < min_obj:
                 min_obj = obj
-
         return max_obj, max_states, max_psi
 
     def lp_relax_init(self):
@@ -133,7 +134,7 @@ class LatentMrf(SOInterface):
         self.lp_ineq_G = spmatrix(-1.0, range(dims), range(dims))
         self.lp_ineq_h = matrix(0.0, (dims, 1))
 
-    def lp_relax_max(self, sol):
+    def lp_relax_max(self, sol, Fa=None, Fb=None):
         """ Estimate the MAP by relaxing the integer linear program
             to a linear program (LP):
                 min_x   <c,x>
@@ -146,11 +147,9 @@ class LatentMrf(SOInterface):
         vertices = len(self.V)
         feats = self.get_num_feats()
         dims = edges*states*states + vertices*states
-
         # build weighting term
         c = matrix(0.0, (dims, 1))
         offset = edges*states*states
-
         # pair-wise potentials
         cnt = 0
         for e in self.E:
@@ -164,17 +163,128 @@ class LatentMrf(SOInterface):
                 c[cnt] = sol[sol_cnt:sol_cnt + feats].trans()*self.X[:, v]
                 sol_cnt += feats
                 cnt += 1
-        res = solver.lp(-c, self.lp_ineq_G, self.lp_ineq_h, self.lp_eq_A, self.lp_eq_b, solver='glpk')['x'].trans()
+        # solution = solver.lp(-c, self.lp_ineq_G, self.lp_ineq_h, self.lp_eq_A, self.lp_eq_b, solver='glpk')
+        G = self.lp_ineq_G
+        h = self.lp_ineq_h
+        A = self.lp_eq_A
+        b = self.lp_eq_b
+        if Fa is not None:
+            print('Extend constraint list by {0} constraints.'.format(Fa.size[0]))
+            c = matrix([c, -1.0])  # add slack variable
+            # Ax = b
+            foo = matrix(0.0, (1, A.size[0]))
+            A = matrix([A.trans(), foo]).trans()
+            # Gx=<h
+            foo = matrix(0.0, (1, G.size[0]))
+            G = matrix([G.trans(), foo]).trans()
+            # add constraints
+            foo = matrix(-1.0, (1, Fa.size[0]))
+            Fa = matrix([Fa.trans(), foo]).trans()
+            h = matrix([h, -Fb])
+            G = matrix([G, Fa])
+            print A.size
+            print b.size
+            print G.size
+            print h.size
+
+        solution = solver.lp(-c, G, h, A, b, solver='glpk')
+        res = solution['x']
+        if Fa is not None:
+            res = res[:-1]
+            c = c[:-1]
+        # print -solution['primal objective']
+        # obj = -res.trans()*c
+        obj = matrix(solution['primal objective'])
+
         # convert into state sequence
         max_states = matrix(0, (1, vertices))
         for v in range(vertices):
             max_states[v] = int(np.argmax(res[offset + v*states:offset + v*states + states]))
         psi = self.get_joint_feature_map(max_states)
-        obj = np.single(sol.trans()*psi)
-        return obj, max_states, psi
+        # obj = np.single(sol.trans()*psi)
+        return obj, max_states, psi, res
 
-    def argmax(self, sol, idx=-1, add_loss=False, add_prior=False, opt_type='linear'):
-        max_obj, max_states, max_psi = self.simple_max(sol)
+    def lp_get_scores(self, w):
+        states = self.S
+        edges = len(self.E)
+        vertices = len(self.V)
+        feats = self.get_num_feats()
+        dims = edges*states*states + vertices*states
+        # build weighting term
+        c = matrix(0.0, (dims, 1))
+        # pair-wise potentials
+        cnt = 0
+        for e in self.E:
+            c[cnt:cnt+states*states] = w[:states*states]
+            cnt += states*states
+        # emissions
+        cnt = edges*states*states
+        for v in self.V:
+            sol_cnt = states*states
+            for s in range(states):
+                c[cnt] = w[sol_cnt:sol_cnt + feats].trans()*self.X[:, v]
+                sol_cnt += feats
+                cnt += 1
+        return c
+
+    def lp_get_objective_at(self, x, w):
+        states = self.S
+        edges = len(self.E)
+        vertices = len(self.V)
+        feats = self.get_num_feats()
+        dims = edges*states*states + vertices*states
+        # build weighting term
+        c = matrix(0.0, (dims, 1))
+        # pair-wise potentials
+        cnt = 0
+        for e in self.E:
+            c[cnt:cnt+states*states] = w[:states*states]
+            cnt += states*states
+        # emissions
+        cnt = edges*states*states
+        for v in self.V:
+            sol_cnt = states*states
+            for s in range(states):
+                c[cnt] = w[sol_cnt:sol_cnt + feats].trans()*self.X[:, v]
+                sol_cnt += feats
+                cnt += 1
+        return c.trans()*x, c
+
+    def qp_relax_max(self, v, u):
+        """ Solving the following problem by linear approximation:
+                min_x xT*u*uT*x - xT*v
+        """
+        Fa = None
+        Fb = None
+
+        rel = 1.0
+        num_iter = 0
+        while num_iter < 400 and rel > 1e-6:
+            (obj, states, psi, x) = self.lp_relax_max(v, Fa, Fb)
+            (xTv, _) = self.lp_get_objective_at(x, v)
+            (xTq, q) = self.lp_get_objective_at(x, u)
+            obj_quad = x.trans()*q*q.trans()*x
+            obj_real = obj_quad - xTv
+
+            Fai = 2.0*q*q.trans()*x  # (dims x 1)
+            Fbi = obj_quad - Fai.trans()*x  # scalar
+
+            if Fa is None:
+                Fa = Fai.trans()  # a single row
+                Fb = Fbi
+            else:
+                Fa = matrix([Fa, Fai.trans()])  # append row
+                Fb = matrix([Fb, Fbi])
+            # next iteration
+            rel = np.abs((obj_real-obj)/obj_real)[0, 0]
+            print('Iter({0}) objectives: real={1} lb={2} rel={3}'.format(num_iter, obj_real[0, 0], obj[0, 0], rel))
+            num_iter += 1
+
+        obj = np.single(u.trans()*psi*psi.trans()*u - v.trans()*psi)
+        return obj, states, psi
+
+    def argmax(self, idx=-1, add_loss=False, add_prior=False, opt_type='linear'):
+        max_obj, max_states, max_psi = self.simple_max(self.sol)
         return float(max_obj), max_states, max_psi
 
     def get_local_potential_indices(self):
