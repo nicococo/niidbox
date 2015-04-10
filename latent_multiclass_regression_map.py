@@ -20,7 +20,7 @@ class LatentMulticlassRegressionMap(SOInterface):
 
     def get_hotstart_sol(self): 
         print('Generate a random solution vector for hot start.')
-        return 1.0*normal(self.get_num_dims(), 1)
+        return 10.0*normal(self.get_num_dims(), 1)
 
     def argmax(self, idx=-1, add_loss=False, add_prior=False):
         # opt_type = 'quadratic':
@@ -42,7 +42,7 @@ class LatentMulticlassRegressionMap(SOInterface):
             f_squares = target - u.trans()*self.X[:, idx]
             f_squares = mul(f_squares, f_squares)
 
-            foo = f_density - f_squares
+            foo = 1.0/(0.1*float(self.samples)) * f_density - f_squares
         else:
             v = matrix(np.array(self.sol).reshape((self.feats, self.num_classes), order='F'))
             f_density = v.trans()*self.X[:, idx]

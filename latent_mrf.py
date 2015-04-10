@@ -24,11 +24,15 @@ class LatentMrf(SOInterface):
     lp_ineq_G = None
     lp_ineq_h = None
 
+    # intermediate latent state
+    Z = None
+
     def __init__(self, X, A, num_states=2, y=None):
         SOInterface.__init__(self, X, y)
         self.A = A
         self.S = num_states
         (verts, foo) = A.size
+        self.Z = matrix(0, (1, verts))
         # construct edges-, vertices- and neighbors-set
         self.E = []
         self.V = []
@@ -53,6 +57,8 @@ class LatentMrf(SOInterface):
     def simple_max(self, v, u=None):
         """ Find the MAP and the log-partition function for 2-state models by exhaustive search. This
             method serves as a sanity check. Do not use this method for real applications!
+
+            Solving: max_x xT*v - xT*u*uT*x (if u==None then only linear part is computed)
         """
         if not self.S == 2:
             raise NotImplementedError('Exhaustive search only handles binary state problems.')
@@ -65,13 +71,14 @@ class LatentMrf(SOInterface):
         # test every single combination
         for i in range(combinations):
             comb = bin(i)[2:].zfill(len(self.V))  # skip the leading '0b' substring
+
             # convert to states sequence
             states = matrix(0, (1, len(self.V)))
             for s in range(len(comb)):
                 if comb[s] == '1':
                     states[s] = 1
             # check objective function
-            psi = self.get_joint_feature_map(states)
+            psi = self.get_global_joint_feature_map(states)
             obj = np.single(v.trans()*psi)
             if u is not None:
                 obj -= np.single(u.trans()*psi*psi.trans()*u)
@@ -128,7 +135,8 @@ class LatentMrf(SOInterface):
             A.append(constr)
             b.append(matrix([1.0]))
             offset += states
-        self.lp_eq_A = sparse(matrix(A))
+        # self.lp_eq_A = sparse(matrix(A))
+        self.lp_eq_A = sparse(A)
         self.lp_eq_b = matrix(b)
         # lower bounds
         self.lp_ineq_G = spmatrix(-1.0, range(dims), range(dims))
@@ -200,7 +208,81 @@ class LatentMrf(SOInterface):
         max_states = matrix(0, (1, vertices))
         for v in range(vertices):
             max_states[v] = int(np.argmax(res[offset + v*states:offset + v*states + states]))
-        psi = self.get_joint_feature_map(max_states)
+        psi = self.get_global_joint_feature_map(max_states)
+        # obj = np.single(sol.trans()*psi)
+        return obj, max_states, psi, res
+
+    def qp_relax_max_direct(self, sol, u, Fa=None, Fb=None):
+        """ Estimate the MAP by relaxing the integer linear program
+            to a linear program (LP):
+                min_x   xT*Q*x - <c,x>
+                s.t.    Gx+s=h
+                        Ax = b
+                        s >= 0  (element-wise)
+        """
+        states = self.S
+        edges = len(self.E)
+        vertices = len(self.V)
+        feats = self.get_num_feats()
+        dims = edges*states*states + vertices*states
+        # build weighting term
+        c = matrix(0.0, (dims, 1))
+        offset = edges*states*states
+        # pair-wise potentials
+        cnt = 0
+        for e in self.E:
+            c[cnt:cnt+states*states] = sol[:states*states]
+            cnt += states*states
+        # emissions
+        cnt = offset
+        for v in self.V:
+            sol_cnt = states*states
+            for s in range(states):
+                c[cnt] = sol[sol_cnt:sol_cnt + feats].trans()*self.X[:, v]
+                sol_cnt += feats
+                cnt += 1
+        # solution = solver.lp(-c, self.lp_ineq_G, self.lp_ineq_h, self.lp_eq_A, self.lp_eq_b, solver='glpk')
+        G = self.lp_ineq_G
+        h = self.lp_ineq_h
+        A = self.lp_eq_A
+        b = self.lp_eq_b
+        if Fa is not None:
+            print('Extend constraint list by {0} constraints.'.format(Fa.size[0]))
+            c = matrix([c, -1.0])  # add slack variable
+            # Ax = b
+            foo = matrix(0.0, (1, A.size[0]))
+            A = matrix([A.trans(), foo]).trans()
+            # Gx=<h
+            foo = matrix(0.0, (1, G.size[0]))
+            G = matrix([G.trans(), foo]).trans()
+            # add constraints
+            foo = matrix(-1.0, (1, Fa.size[0]))
+            Fa = matrix([Fa.trans(), foo]).trans()
+            h = matrix([h, -Fb])
+            G = matrix([G, Fa])
+            print A.size
+            print b.size
+            print G.size
+            print h.size
+
+        # convert u to Q
+        Q = self.lp_get_scores(u)
+        Q = 2.0*Q*Q.trans()
+        solution = solver.qp(Q, -c, G, h, A, b, solver='mosek')
+        res = solution['x']
+        if Fa is not None:
+            res = res[:-1]
+            c = c[:-1]
+        # print -solution['primal objective']
+        # obj = -res.trans()*c
+        print solution['primal objective']
+        obj = matrix(solution['primal objective'])
+
+        # convert into state sequence
+        max_states = matrix(0, (1, vertices))
+        for v in range(vertices):
+            max_states[v] = int(np.argmax(res[offset + v*states:offset + v*states + states]))
+        psi = self.get_global_joint_feature_map(max_states)
         # obj = np.single(sol.trans()*psi)
         return obj, max_states, psi, res
 
@@ -283,6 +365,12 @@ class LatentMrf(SOInterface):
         obj = np.single(u.trans()*psi*psi.trans()*u - v.trans()*psi)
         return obj, states, psi
 
+    def update_solution(self, sol):
+        # called during training: sol consists of v and u
+        if not isinstance(sol, list):
+            print('Update solution needs u and v parameters.')
+        self.sol = sol
+
     def argmax(self, idx=-1, add_loss=False, add_prior=False, opt_type='linear'):
         max_obj, max_states, max_psi = self.simple_max(self.sol)
         return float(max_obj), max_states, max_psi
@@ -296,7 +384,7 @@ class LatentMrf(SOInterface):
                 cnt += 1
         return pmap
 
-    def get_joint_feature_map(self, y=None):
+    def get_global_joint_feature_map(self, y=None):
         y = np.array(y)
         pot_inds = self.get_local_potential_indices()
         psi = matrix(0.0, (self.get_num_dims(), 1))
@@ -317,6 +405,34 @@ class LatentMrf(SOInterface):
                     for f in range(feats):
                         psi[cnt+f] += self.X[f, v]
                 cnt += feats
+        return psi
+
+    def get_joint_feature_map(self, idx, y=None):
+        # build feature map containing the actual measurement at 'idx'
+        # and its neighbors.
+        if y is None:
+            y = self.Z[idx]
+        pot_inds = self.get_local_potential_indices()
+        psi = matrix(0.0, (self.get_num_dims(), 1))
+
+        # transitions
+        for e in self.E:
+            if e[0] == idx or e[1] == idx:
+                yi = y[0, int(e[0])]
+                yj = y[0, int(e[1])]
+                trans_idx = pot_inds[int(yi), int(yj)]
+                psi[trans_idx] += 0.5  # each edge is visited twice
+                # psi[trans_idx] += 1.0
+
+        # emissions
+        feats = self.get_num_feats()
+        v = self.V[idx]
+        cnt = 0
+        for s in range(self.S):
+            if s == y:
+                for f in range(feats):
+                    psi[cnt+f] += self.X[f, v]
+            cnt += feats
         return psi
 
     def get_num_dims(self):
