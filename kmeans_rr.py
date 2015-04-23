@@ -5,6 +5,9 @@ import numpy as np
 class KmeansRidgeRegression(object):
     """ Kmeans Ridge Regression.
         Written by Nico Goernitz, TU Berlin, 2015
+
+        min lambda/2 ||u||^2 + sum_i |y_i - <u_zi,x_i>|^2 +
+             gamma/2 ||v||^2 + sum_i ||v_zi - x_i||^2
     """
     lam = 0.001  # (scalar) the regularization constant > 0
     gam = 1.0  # density estimation regularizer
@@ -18,9 +21,7 @@ class KmeansRidgeRegression(object):
     cluster = 2  # number of clusters
     latent = None
 
-    def __init__(self, X, y, cluster=2, l=0.001, gamma=1.0):
-        self.X = X
-        self.y = y
+    def __init__(self, cluster=2, l=0.001, gamma=1.0):
         self.lam = l
         self.gam = gamma
         self.cluster = cluster
@@ -37,13 +38,12 @@ class KmeansRidgeRegression(object):
             f_squares = y - u.trans()*X
             f_squares = mul(f_squares, f_squares)
 
-            foo = - self.gam*f_density - f_squares
+            foo = - (f_density + f_squares)
 
             # highest value first
             inds = np.argsort(-foo, axis=0)[0]
             cls = inds[0]
             val = foo[cls]
-            psi_idx = self.get_joint_feature_map(X, cls)
         else:
             active = np.array(range(self.cluster))
             if self.latent is not None:
@@ -58,19 +58,14 @@ class KmeansRidgeRegression(object):
             inds = np.argsort(-foo[active], axis=0)[0]
             cls = active[inds[0]]
             val = foo[cls]
-            psi_idx = self.get_joint_feature_map(X, cls)
 
-        return val, cls, psi_idx
+        psi = matrix(0.0, (dims*self.cluster, 1))
+        psi[dims*cls:dims*(cls+1)] = X
+        return val, cls, psi
 
-    def get_joint_feature_map(self, X, cls):
-        nd, n = self.X.size
-        mc = self.cluster
-        psi = matrix(0.0, (nd*mc, 1))
-        psi[nd*cls:nd*(cls+1)] = X
-        return psi
-
-    def train_dc(self, max_iter=50):
-        runs = 10
+    def fit(self, X, y, runs=10, max_iter=50):
+        self.X = X
+        self.y = y
         obj = 1e14
         best_u = 0
         best_v = 0
@@ -116,10 +111,10 @@ class KmeansRidgeRegression(object):
             for c in range(self.cluster):
                 inds = np.where(latent == c)[0]
                 if inds.size > 0:
-                    v[c*dims:c*dims+dims] = matrix(1.0/(float(inds.size)*(1.0)) * np.sum(psi[:, inds], axis=1))
+                    v[c*dims:c*dims+dims] = matrix(1.0/(float(inds.size)+self.gam/2.0) * np.sum(psi[:, inds], axis=1))
 
             # calc density objective function:
-            obj_density = v.trans()*v + 1.0/float(n) * np.sum(v.trans()*v - 2.0*v.trans()*psi + np.diag(psi.trans()*psi))
+            obj_density = self.gam/2.0 * v.trans()*v + np.sum(v.trans()*v - 2.0*v.trans()*psi + np.diag(psi.trans()*psi))
 
             # Solve the regression problem
             vecy = np.array(matrix(self.y))[:, 0]
@@ -132,7 +127,8 @@ class KmeansRidgeRegression(object):
             b = self.y  # (exms x 1)
             phi = psi  # (dims x exms)
             old_obj = obj
-            obj = l*w.trans()*w + b.trans()*b - 2.0*w.trans()*phi*b + w.trans()*phi*phi.trans()*w + self.gam * obj_density
+            obj_regression = self.lam/2.0*w.trans()*w + b.trans()*b - 2.0*w.trans()*phi*b + w.trans()*phi*phi.trans()*w
+            obj = obj_regression + obj_density
             rel = np.abs((old_obj - obj)/obj)
             print('Iter={0}  least squares objective={1:4.2f}  rel={2:2.4f}'.format(iter, obj[0, 0], rel[0, 0]))
             print np.unique(latent)
@@ -158,7 +154,7 @@ class KmeansRidgeRegression(object):
             w = 1.0/XXt * XtY
         return matrix(w)
 
-    def apply(self, Xpred):
+    def predict(self, Xpred):
         dims, samples = Xpred.size
         vals = matrix(0.0, (samples, 1))
         structs = []

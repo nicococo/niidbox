@@ -114,26 +114,27 @@ def single_run(vecX, vecy, vecz=None, states=2, plot=False):
     test_mc = LatentMulticlassRegressionMap(co.matrix(vecX[test, :].T), classes=states)
 
     # train latent support vector regression
-    lsvr = LatentRidgeRegression(train_mc, l=0.00001, gamma=0.1)
-    (_, train_lats) = lsvr.train_dc(max_iter=200)
-    (y_pred_lrr, lats) = lsvr.apply(test_mc)
-    y_pred_lrr = np.array(y_pred_lrr)[:, 0]
-    lats = np.array(lats)
-    lrr_abs = calc_error(vecy[test], y_pred_lrr)
-    lrr_mse = root_mean_squared_error(vecy[test], y_pred_lrr)
-    lrr_ars = 0.0
-    if vecz is not None:
-        lrr_ars = adjusted_rand_score(vecz[test], lats)
-
-    # lsvr = KmeansRidgeRegression(co.matrix(vecX[train, :].T), co.matrix(vecy[train]), cluster=states, l=0.00001, gamma=0.4)
-    # (_, _,) = lsvr.train_dc(max_iter=200)
-    # (y_pred_lrr, lats) = lsvr.apply(co.matrix(vecX[test, :].T))
+    # lsvr = LatentRidgeRegression(train_mc, l=0.00001, gamma=0.1)
+    # (_, train_lats) = lsvr.train_dc(max_iter=200)
+    # (y_pred_lrr, lats) = lsvr.apply(test_mc)
     # y_pred_lrr = np.array(y_pred_lrr)[:, 0]
     # lats = np.array(lats)
-    # lrr_mse = root_mean_squared_error(vecy[test], y_pred_lrr)
     # lrr_abs = calc_error(vecy[test], y_pred_lrr)
+    # lrr_mse = root_mean_squared_error(vecy[test], y_pred_lrr)
+    # lrr_ars = 0.0
     # if vecz is not None:
     #     lrr_ars = adjusted_rand_score(vecz[test], lats)
+
+    krr = KmeansRidgeRegression(cluster=states, l=0.00001, gamma=1.0)
+    (_, _,) = krr.fit(co.matrix(vecX[train, :].T), co.matrix(vecy[train]), max_iter=200)
+    (y_pred_lrr, lats) = krr.predict(co.matrix(vecX[test, :].T))
+    y_pred_lrr = np.array(y_pred_lrr)[:, 0]
+    lats = np.array(lats)
+    lrr_mse = root_mean_squared_error(vecy[test], y_pred_lrr)
+    lrr_abs = calc_error(vecy[test], y_pred_lrr)
+    if vecz is not None:
+        lrr_ars = adjusted_rand_score(vecz[test], lats)
+    lsvr = krr
 
     # KMEANS + RIDGE REGRESSION
     kmeans = cl.KMeans(n_clusters=states, init='random', n_init=10, max_iter=100, tol=0.0001)
