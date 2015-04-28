@@ -39,8 +39,8 @@ def get_2d_toy_data(grid_x, grid_y):
 
 
 if __name__ == '__main__':
-    grid_x = 1
-    grid_y = 15
+    grid_x = 10
+    grid_y = 10
     (vecX, vecy, vecz) = get_2d_toy_data(grid_x, grid_y)
 
     # normalize data
@@ -53,9 +53,8 @@ if __name__ == '__main__':
     # build neighbor list
     A = np.zeros((grid_x*grid_y, grid_x*grid_y))
     for i in range(grid_x*grid_y):
-        row = np.floor(float(i)/float(grid_x))
+        row = np.floor(float(i) / float(grid_x))
         col = np.floor(float(i) % float(grid_x))
-
         # upper
         if row < (grid_y-1):
             A[i+grid_x, i] = 1
@@ -74,27 +73,40 @@ if __name__ == '__main__':
     u = mrf.get_hotstart_sol()
     v = mrf.get_hotstart_sol()
 
-    (obj, states, psi) = mrf.simple_max(v, u)
     # (obj_lp, states_lp, psi_lp, res_lp) = mrf.lp_relax_max(v - u*(u.trans()*psi))
     (obj_lp, states_lp, psi_lp, res_lp) = mrf.lp_relax_max(v)
     (obj_qp, states_qp, psi_qp) = mrf.qp_relax_max(v, u)
+    (obj_qpr, states_qpr, psi_qpr, res_qpr) = mrf.qp_relax_max_direct(v, u)
+    obj = obj_qpr
+    states = states_qpr
+    if grid_x*grid_y < 18:
+        print('Calculate real objective using brute-force...')
+        (obj, states, psi) = mrf.simple_max(v, u)
 
+    states_qpr = np.array(states_qpr.trans())
     states_qp = np.array(states_qp.trans())
     states_lp = np.array(states_lp.trans())
     states = np.array(states.trans())
     # print states
     # print states_lp
-    print (obj, obj_lp[0, 0], obj_qp)
+    print (obj[0, 0], obj_lp[0, 0], obj_qp[0, 0], obj_qpr[0, 0])
 
     plt.figure(1)
-    plt.subplot(3, 1, 1)
+    plt.subplot(2, 2, 1)
     plt.pcolor(states.reshape(grid_x, grid_y))
+    plt.title('Original')
 
-    plt.subplot(3, 1, 2)
+    plt.subplot(2, 2, 2)
     plt.pcolor(states_lp.reshape(grid_x, grid_y))
+    plt.title('LP')
 
-    plt.subplot(3, 1, 3)
+    plt.subplot(2, 2, 3)
     plt.pcolor(states_qp.reshape(grid_x, grid_y))
+    plt.title('QP cutting plane')
+
+    plt.subplot(2, 2, 4)
+    plt.pcolor(states_qpr.reshape(grid_x, grid_y))
+    plt.title('QP')
     plt.show()
 
     # ..and stop

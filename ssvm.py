@@ -51,7 +51,7 @@ class SSVM(object):
             newConstr=0
             for i in range(N):
                 (val, ypred, psi_i) = self.sobj.argmax(w, i, add_loss=True)
-                psi_true = self.sobj.get_joint_feature_map(i)
+                psi_true = self.sobj.get_global_joint_feature_map(i)
 
                 v_true = w.trans()*psi_true
                 v_pred = w.trans()*psi_i
