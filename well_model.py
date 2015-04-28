@@ -19,8 +19,6 @@ class WellModel(StructuredObject):
 
     transitions = -1
 
-    sol = None
-
     def __init__(self, X, y=None, num_states=3, hotstart_tradeoff=0.1, state_dims_map=None):
         StructuredObject.__init__(self, X, y)
         self.states = num_states
@@ -58,9 +56,6 @@ class WellModel(StructuredObject):
         sol = uniform(self.get_num_dims(), 1, a=-1, b=+1)
         print('Hotstart position uniformly random with transition tradeoff {0}.'.format(self.hotstart_tradeoff))
         return sol
-
-    def update_solution(self, sol):
-        self.sol = sol
 
     def calc_emission_matrix(self, sol, idx, augment_loss=False, augment_prior=False):
         T = len(self.X[idx][0,:])

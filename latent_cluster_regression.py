@@ -3,7 +3,7 @@ import numpy as np
 
 
 class LatentClusterRegression(object):
-    """ Kmeans Ridge Regression.
+    """ Cluster Ridge Regression.
         Written by Nico Goernitz, TU Berlin, 2015
 
         min lambda/2 ||u||^2 + sum_i |y_i - <u_zi,x_i>|^2 +

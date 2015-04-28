@@ -7,7 +7,7 @@ import math as math
 
 from sklearn.svm import SVR
 
-from latent_ridge import LatentRidgeRegression
+from latent_ridge_regression import LatentRidgeRegression
 
 
 class LatentSVR(LatentRidgeRegression):
@@ -20,7 +20,7 @@ class LatentSVR(LatentRidgeRegression):
     def __init__(self, sobj, C=1.0, epsilon=0.001):
         LatentRidgeRegression.__init__(self, sobj, l=C)
         self.epsilon = epsilon
-        self.svr = SVR(C=self.reg, epsilon=self.epsilon, kernel='linear', shrinking=False)
+        self.svr = SVR(C=self.lam, epsilon=self.epsilon, kernel='linear', shrinking=False)
 
     # override 
     def train_model(self, vecX, vecy):

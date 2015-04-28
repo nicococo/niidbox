@@ -5,18 +5,21 @@ import numpy as np
 class LatentRidgeRegression(object):
     """ Latent Variable Ridge Regression.
         Written by Nico Goernitz, TU Berlin, 2015
+
+        min lambda ||u||^2 + sum_i |y_i - <u,Psi(x_i,pi_i)>|^2 +
+             gamma ||v||^2 - sum_i <v,Psi(x_i,pi_i)>
     """
-    reg = 0.001  # (scalar) the regularization constant > 0
+    lam = 0.001  # (scalar) the regularization constant > 0
     gamma = 1.0  # density estimation regularizer
     sobj = None
     sol = None
     cls = None  # regression
     intercept = 0.0
 
-    def __init__(self, sobj, l=0.001, gamma=1.0):
+    def __init__(self, sobj, lam=0.001, gam=1.0):
         self.cls = []
-        self.reg = l
-        self.gamma = gamma
+        self.lam = lam
+        self.gamma = gam
         self.sobj = sobj
 
     def train_dc(self, max_iter=50):
@@ -70,12 +73,12 @@ class LatentRidgeRegression(object):
             for i in range(n):
                 (foo, latent[i], psi[:, i]) = self.sobj.map(i, add_prior=True, add_loss=True)
 
-            self.sol = matrix(1.0/(float(n)*self.gamma) * np.sum(psi, axis=1))
+            self.sol = matrix(1.0/(2.0*self.gamma) * np.sum(psi, axis=1))
             # calc objective function:
             w = self.sol  # (dims x 1)
             b = matrix(1.0, (n, 1))  # (exms x 1)
             phi = psi  # (dims x exms)
-            obj_de = np.single(self.gamma/2.0*w.trans()*w - 1.0/float(n)*w.trans()*phi*b)
+            obj_density = np.single(self.gamma*w.trans()*w - w.trans()*phi*b)
 
             # Solve the regression problem
             vecy = np.array(matrix(self.sobj.y))[:, 0]
@@ -83,11 +86,13 @@ class LatentRidgeRegression(object):
             self.cls = self.train_model(vecX, vecy)
             # calc objective function:
             w = self.cls  # (dims x 1)
-            l = self.reg  # scalar
+            l = self.lam  # scalar
             b = self.sobj.y  # (exms x 1)
             phi = psi  # (dims x exms)
+            obj_regression = l*w.trans()*w + b.trans()*b - 2.0*w.trans()*phi*b + w.trans()*phi*phi.trans()*w
+
             old_obj = obj
-            obj = l*w.trans()*w + b.trans()*b - 2.0*w.trans()*phi*b + w.trans()*phi*phi.trans()*w + obj_de
+            obj = obj_regression + obj_density
             rel = np.abs((old_obj - obj)/obj)
             print('Iter={0} combined objective={1:4.2f} rel={2:2.4f}'.format(iter, obj[0, 0], rel[0, 0]))
             print np.unique(latent)
@@ -111,7 +116,7 @@ class LatentRidgeRegression(object):
     def train_model(self, vecX, vecy):
         # solve the ridge regression problem
         E = np.zeros((vecX.shape[1], vecX.shape[1]))
-        np.fill_diagonal(E, self.reg)
+        np.fill_diagonal(E, self.lam)
         XXt = vecX.T.dot(vecX) + E
         XtY = (vecX.T.dot(vecy))
         if XXt.size > 1:
@@ -122,15 +127,14 @@ class LatentRidgeRegression(object):
 
     def apply(self, pred_sobj):
         """ Application of the Latent Ridge Regression:
-            score = max_z <sol*,\Psi(x,z)>
-            latent_state = argmax_z <sol*,\Psi(x,z)>
+            latent state: pi = argmax_z <sol*,Psi(x,z)>
+            score =  <sol,Psi(x,pi)>
         """
         samples = pred_sobj.get_num_samples()
         vals = matrix(0.0, (samples, 1))
         structs = []
         pred_sobj.update_solution(self.sol)
         for i in range(samples):
-            # (foo, struct, psi) = pred_sobj.argmax([self.sol, self.cls], i, add_prior=False)
             (foo, struct, psi) = pred_sobj.map(i, add_prior=False)
             vals[i] = self.cls.trans() * psi + self.intercept
             structs.append(struct)

@@ -42,7 +42,7 @@ class MulticlassRegressionModel(StructuredObject):
             f_squares = target - u.trans()*self.X[:, idx]
             f_squares = mul(f_squares, f_squares)
 
-            foo = 1.0/(0.1*float(self.samples)) * f_density - f_squares
+            foo = f_density - f_squares
         else:
             v = matrix(np.array(self.sol).reshape((self.feats, self.num_classes), order='F'))
             f_density = v.trans()*self.X[:, idx]

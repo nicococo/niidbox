@@ -8,7 +8,7 @@ from sklearn.datasets import load_svmlight_file
 import sklearn.cluster as cl
 
 from latent_svr import LatentSVR
-from latent_ridge import LatentRidgeRegression
+from latent_ridge_regression import LatentRidgeRegression
 from multiclass_regression_model import MulticlassRegressionModel
 from crf_regression_model import CRFRegressionModel
 
