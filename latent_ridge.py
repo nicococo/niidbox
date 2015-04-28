@@ -68,7 +68,7 @@ class LatentRidgeRegression(object):
             # for the current solution compute the most likely latent variable configuration
             self.sobj.update_solution([self.sol, self.cls])
             for i in range(n):
-                (foo, latent[i], psi[:, i]) = self.sobj.argmax(i, add_prior=True, add_loss=True)
+                (foo, latent[i], psi[:, i]) = self.sobj.map(i, add_prior=True, add_loss=True)
 
             self.sol = matrix(1.0/(float(n)*self.gamma) * np.sum(psi, axis=1))
             # calc objective function:
@@ -131,7 +131,7 @@ class LatentRidgeRegression(object):
         pred_sobj.update_solution(self.sol)
         for i in range(samples):
             # (foo, struct, psi) = pred_sobj.argmax([self.sol, self.cls], i, add_prior=False)
-            (foo, struct, psi) = pred_sobj.argmax(i, add_prior=False)
+            (foo, struct, psi) = pred_sobj.map(i, add_prior=False)
             vals[i] = self.cls.trans() * psi + self.intercept
             structs.append(struct)
         print np.unique(structs)

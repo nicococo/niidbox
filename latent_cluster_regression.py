@@ -2,7 +2,7 @@ from cvxopt import matrix, normal, mul
 import numpy as np
 
 
-class KmeansRidgeRegression(object):
+class LatentClusterRegression(object):
     """ Kmeans Ridge Regression.
         Written by Nico Goernitz, TU Berlin, 2015
 

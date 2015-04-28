@@ -1,10 +1,10 @@
 import numpy as np
 from cvxopt import matrix, normal, mul
 
-from so_interface import SOInterface
+from structured_object import StructuredObject
 
 
-class LatentMulticlassRegressionMap(SOInterface):
+class MulticlassRegressionModel(StructuredObject):
     """ Latent Multi-class Regression Map.
         Number of latent classes must be set in advance.
         Target values 'y' are continuous regression targets.
@@ -15,14 +15,14 @@ class LatentMulticlassRegressionMap(SOInterface):
         """ The number of classes directly translate into individual indices
             therefore ensure that y >= 0.
         """
-        SOInterface.__init__(self, X, y)
+        StructuredObject.__init__(self, X, y)
         self.num_classes = classes      
 
     def get_hotstart_sol(self): 
         print('Generate a random solution vector for hot start.')
         return 10.0*normal(self.get_num_dims(), 1)
 
-    def argmax(self, idx=-1, add_loss=False, add_prior=False):
+    def map(self, idx=-1, add_loss=False, add_prior=False):
         # opt_type = 'quadratic':
         # the argmax is equal to the argmax of the linear function
         # foo = -normSol + 2*foo - normPsi

@@ -10,7 +10,7 @@ from sklearn.svm import SVR
 from latent_ridge import LatentRidgeRegression
 
 
-class LatentSvr(LatentRidgeRegression):
+class LatentSVR(LatentRidgeRegression):
     """ Latent Variable Support Vector Regression.
         Written by Nico Goernitz, TU Berlin, 2015
     """

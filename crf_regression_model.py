@@ -2,10 +2,10 @@ import numpy as np
 from cvxopt import matrix, spmatrix, normal, uniform, sparse, exp, log
 import cvxopt.solvers as solver
 
-from so_interface import SOInterface
+from structured_object import StructuredObject
 
 
-class LatentMrf(SOInterface):
+class CRFRegressionModel(StructuredObject):
     """ Homogenous and pairwise Markov random field (MRF)
         that resembles a splice graph.
     """
@@ -28,7 +28,7 @@ class LatentMrf(SOInterface):
     Z = None
 
     def __init__(self, X, A, num_states=2, y=None):
-        SOInterface.__init__(self, X, y)
+        StructuredObject.__init__(self, X, y)
         self.A = A
         self.S = num_states
         (verts, foo) = A.size
@@ -371,7 +371,7 @@ class LatentMrf(SOInterface):
             print('Update solution needs u and v parameters.')
         self.sol = sol
 
-    def argmax(self, idx=-1, add_loss=False, add_prior=False, opt_type='linear'):
+    def map(self, idx=-1, add_loss=False, add_prior=False, opt_type='linear'):
         max_obj, max_states, max_psi = self.simple_max(self.sol)
         return float(max_obj), max_states, max_psi
 

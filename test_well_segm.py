@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 
 
 from ssvm import SSVM
-from so_well import SOWell
+from well_model import WellModel
 
 
 def load_well_data(fname):
@@ -125,12 +125,12 @@ if __name__=='__main__':
     print Xt[0].shape
     print yt[0].size
 
-    model_train = SOWell(Xt, yt)
+    model_train = WellModel(Xt, yt)
 
     #Xtest = Xt
     #ytest = yt
 
-    model_test = SOWell(Xtest, ytest)
+    model_test = WellModel(Xtest, ytest)
 
     ssvm = SSVM(model_train)
     ssvm.train()
