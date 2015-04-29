@@ -7,10 +7,10 @@ from sklearn.metrics import mean_squared_error
 from sklearn.datasets import load_svmlight_file
 import sklearn.cluster as cl
 
-from latent_svr import LatentSvr
-from latent_ridge import LatentRidgeRegression
-from latent_multiclass_regression_map import LatentMulticlassRegressionMap
-from latent_mrf import LatentMrf
+from latent_svr import LatentSVR
+from latent_ridge_regression import LatentRidgeRegression
+from multiclass_regression_model import MulticlassRegressionModel
+from crf_regression_model import CRFRegressionModel
 
 
 def get_2d_toy_data(grid_x, grid_y):
@@ -69,7 +69,7 @@ if __name__ == '__main__':
             A[i-1, i] = 1
     print A
 
-    mrf = LatentMrf(co.matrix(vecX.T), co.matrix(A.T), num_states=2, y=co.matrix(vecy.T))
+    mrf = CRFRegressionModel(co.matrix(vecX.T), co.matrix(A.T), num_states=2, y=co.matrix(vecy.T))
     u = mrf.get_hotstart_sol()
     v = mrf.get_hotstart_sol()
 

@@ -9,18 +9,16 @@ class SSVM(object):
         Written by Nico Goernitz, TU Berlin, 2014
     """
 
-    C = 1.0 # (scalar) the regularization constant > 0
-    sobj = [] # structured object contains various functions
-              # e.g. get_num_dims(), get_num_samples(), get_sample(i), argmax(sol,i)
-              # should be inherited by so_interface
-    w = [] # (vector) solution vector
-    slacks = [] # (vector) slack variables
-
+    C = 1.0  # (scalar) the regularization constant > 0
+    sobj = []  # structured object contains various functions
+               # e.g. get_num_dims(), get_num_samples(), get_sample(i), argmax(sol,i)
+               # should be inherited by so_interface
+    w = []  # (vector) solution vector
+    slacks = []  # (vector) slack variables
 
     def __init__(self, sobj, C=1.0):
         self.C = C
         self.sobj = sobj
-
 
     def train(self, heur_constr=10.4, max_iter=100):
         N = self.sobj.get_num_samples()
@@ -50,12 +48,12 @@ class SSVM(object):
 
             newConstr=0
             for i in range(N):
-                (val, ypred, psi_i) = self.sobj.argmax(w, i, add_loss=True)
+                (val, ypred, psi_i) = self.sobj.map(w, i, add_loss=True)
                 psi_true = self.sobj.get_global_joint_feature_map(i)
 
                 v_true = w.trans()*psi_true
                 v_pred = w.trans()*psi_i
-                loss = self.sobj.calc_loss(i,ypred)
+                loss = self.sobj.get_loss(i,ypred)
 
                 if (slacks[i] < np.single(loss-v_true+v_pred)):
                     dpsi = matrix([[dpsi],[-(psi_true-psi_i)]])
@@ -75,14 +73,14 @@ class SSVM(object):
                 diffs = np.array(delta - (G2*sol).trans())
                 inds = np.where(diffs<heur_constr)[1]
                 inds = list([int(inds[i]) for i in range(len(inds))])
-                G2 = G2[inds,:]
-                h2 = delta[:,inds]
+                G2 = G2[inds, :]
+                h2 = delta[:, inds]
                 print('Iter{0}: Solving with {1} of {2} constraints.'.format(iter,len(inds),diffs.shape[1]))
 
             # Solve the intermediate QP using cvxopt
-            G = sparse([G1,G2])
-            h = matrix([[h1],[h2]])
-            res = qp(P,q,G,h.trans())
+            G = sparse([G1, G2])
+            h = matrix([[h1], [h2]])
+            res = qp(P, q, G, h.trans())
 
             obj_primal = res['primal objective']
             sol = res['x']
@@ -94,8 +92,7 @@ class SSVM(object):
         # store obtained solution
         self.w = w
         self.slacks = slacks
-        return (w,slacks)
-
+        return w, slacks
 
     def apply(self, pred_sobj):
         """ Application of the SSVM:
@@ -106,7 +103,7 @@ class SSVM(object):
         vals = []
         structs = []
         for i in range(N):
-            (val, struct, foo) = pred_sobj.argmax(self.w, i, add_loss=False)
+            (val, struct, foo) = pred_sobj.map(self.w, i, add_loss=False)
             vals.append(val)
             structs.append(struct)
-        return (vals, structs)
+        return vals, structs

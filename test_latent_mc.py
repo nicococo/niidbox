@@ -7,10 +7,10 @@ from sklearn.metrics import mean_squared_error, r2_score, mean_absolute_error, a
 from sklearn.datasets import load_svmlight_file
 import sklearn.cluster as cl
 
-from latent_svr import LatentSvr
-from latent_ridge import LatentRidgeRegression
-from latent_multiclass_regression_map import LatentMulticlassRegressionMap
-from kmeans_rr import KmeansRidgeRegression
+from latent_svr import LatentSVR
+from latent_ridge_regression import LatentRidgeRegression
+from multiclass_regression_model import MulticlassRegressionModel
+from latent_cluster_regression import LatentClusterRegression
 
 
 def load_svmlight_data(fname):
@@ -110,31 +110,31 @@ def single_run(vecX, vecy, vecz=None, states=2, plot=False):
     svr_abs = calc_error(vecy[test], y_pred_svr)
     svr_mse = root_mean_squared_error(vecy[test], y_pred_svr)
 
-    train_mc = LatentMulticlassRegressionMap(co.matrix(vecX[train, :].T), classes=states, y=co.matrix(vecy[train]))
-    test_mc = LatentMulticlassRegressionMap(co.matrix(vecX[test, :].T), classes=states)
+    train_mc = MulticlassRegressionModel(co.matrix(vecX[train, :].T), classes=states, y=co.matrix(vecy[train]))
+    test_mc = MulticlassRegressionModel(co.matrix(vecX[test, :].T), classes=states)
 
     # train latent support vector regression
-    # lsvr = LatentRidgeRegression(train_mc, l=0.00001, gamma=0.1)
-    # (_, train_lats) = lsvr.train_dc(max_iter=200)
-    # (y_pred_lrr, lats) = lsvr.apply(test_mc)
-    # y_pred_lrr = np.array(y_pred_lrr)[:, 0]
-    # lats = np.array(lats)
-    # lrr_abs = calc_error(vecy[test], y_pred_lrr)
-    # lrr_mse = root_mean_squared_error(vecy[test], y_pred_lrr)
-    # lrr_ars = 0.0
-    # if vecz is not None:
-    #     lrr_ars = adjusted_rand_score(vecz[test], lats)
-
-    krr = KmeansRidgeRegression(cluster=states, l=0.00001, gamma=1.0)
-    (_, _,) = krr.fit(co.matrix(vecX[train, :].T), co.matrix(vecy[train]), max_iter=200)
-    (y_pred_lrr, lats) = krr.predict(co.matrix(vecX[test, :].T))
+    lsvr = LatentRidgeRegression(train_mc, lam=0.00001, gam=1.0*float(len(train)))
+    (_, train_lats) = lsvr.train_dc(max_iter=200)
+    (y_pred_lrr, lats) = lsvr.apply(test_mc)
     y_pred_lrr = np.array(y_pred_lrr)[:, 0]
     lats = np.array(lats)
-    lrr_mse = root_mean_squared_error(vecy[test], y_pred_lrr)
     lrr_abs = calc_error(vecy[test], y_pred_lrr)
+    lrr_mse = root_mean_squared_error(vecy[test], y_pred_lrr)
+    lrr_ars = 0.0
     if vecz is not None:
         lrr_ars = adjusted_rand_score(vecz[test], lats)
-    lsvr = krr
+
+    # krr = LatentClusterRegression(cluster=states, l=0.00001, gamma=0.2*float(len(train)))
+    # (_, _,) = krr.fit(co.matrix(vecX[train, :].T), co.matrix(vecy[train]), max_iter=200)
+    # (y_pred_lrr, lats) = krr.predict(co.matrix(vecX[test, :].T))
+    # y_pred_lrr = np.array(y_pred_lrr)[:, 0]
+    # lats = np.array(lats)
+    # lrr_mse = root_mean_squared_error(vecy[test], y_pred_lrr)
+    # lrr_abs = calc_error(vecy[test], y_pred_lrr)
+    # if vecz is not None:
+    #     lrr_ars = adjusted_rand_score(vecz[test], lats)
+    # lsvr = krr
 
     # KMEANS + RIDGE REGRESSION
     kmeans = cl.KMeans(n_clusters=states, init='random', n_init=10, max_iter=100, tol=0.0001)
