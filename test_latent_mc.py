@@ -21,7 +21,7 @@ def load_svmlight_data(fname):
 
 
 def get_1d_toy_data(plot_data=False):
-    grid_x = 1600
+    grid_x = 1000
     # generate 2D grid
     gx = np.linspace(0, 1, grid_x)
 
@@ -65,8 +65,8 @@ def get_1d_toy_data(plot_data=False):
 
 
 def calc_error(truth, preds):
-    # return root_mean_squared_error(truth, preds)
-    return mean_absolute_error(truth, preds)
+    return root_mean_squared_error(truth, preds)
+    # return mean_absolute_error(truth, preds)
     # return r2_score(truth, preds)
 
 
@@ -114,9 +114,9 @@ def single_run(vecX, vecy, vecz=None, states=2, plot=False):
     test_mc = MulticlassRegressionModel(co.matrix(vecX[test, :].T), classes=states)
 
     # train latent support vector regression
-    lsvr = LatentRidgeRegression(train_mc, lam=0.00001, gam=1.0*float(len(train)))
-    (_, train_lats) = lsvr.train_dc(max_iter=200)
-    (y_pred_lrr, lats) = lsvr.apply(test_mc)
+    lsvr = LatentRidgeRegression(theta=1.0, lam=0.00001, gam=1.0*float(len(train)))
+    (_, train_lats) = lsvr.fit(train_mc, max_iter=200)
+    (y_pred_lrr, lats) = lsvr.predict(test_mc)
     y_pred_lrr = np.array(y_pred_lrr)[:, 0]
     lats = np.array(lats)
     lrr_abs = calc_error(vecy[test], y_pred_lrr)
