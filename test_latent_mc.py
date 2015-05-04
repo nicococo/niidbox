@@ -8,7 +8,7 @@ from sklearn.datasets import load_svmlight_file
 import sklearn.cluster as cl
 
 from latent_svr import LatentSVR
-from latent_ridge_regression import LatentRidgeRegression
+from latent_ridge_regression import LatentRidgeRegression, TransductiveLatentRidgeRegression
 from multiclass_regression_model import MulticlassRegressionModel
 from latent_cluster_regression import LatentClusterRegression
 
@@ -28,8 +28,8 @@ def get_1d_toy_data(plot_data=False):
     # latent variable z
     z = np.zeros(grid_x, dtype=np.uint8)
     zx = np.where((gx > 0.2) & (gx < 0.6))[0]
-    zx = np.where(gx > 0.5)[0]
-    z[zx] = 1
+    zx = np.where(gx > 0.6)[0]
+    z[zx] = 2
 
     # inputs  x
     x = 4.0*np.sign(z-0.4)*gx + 2.0*np.sign(z-0.4) + 0.5*np.random.randn(grid_x)
@@ -65,8 +65,8 @@ def get_1d_toy_data(plot_data=False):
 
 
 def calc_error(truth, preds):
-    return root_mean_squared_error(truth, preds)
-    # return mean_absolute_error(truth, preds)
+    # return root_mean_squared_error(truth, preds)
+    return mean_absolute_error(truth, preds)
     # return r2_score(truth, preds)
 
 
@@ -85,7 +85,7 @@ def single_run(vecX, vecy, vecz=None, states=2, plot=False):
     # generate training samples
     samples = vecX.shape[0]
     feats = vecX.shape[1]
-    train_frac = 0.75
+    train_frac = 0.05
     inds = np.random.permutation(range(samples))
     train = inds[:np.floor(samples*train_frac)]
     test = inds[np.floor(samples*train_frac):]
@@ -112,11 +112,10 @@ def single_run(vecX, vecy, vecz=None, states=2, plot=False):
 
     train_mc = MulticlassRegressionModel(co.matrix(vecX[train, :].T), classes=states, y=co.matrix(vecy[train]))
     test_mc = MulticlassRegressionModel(co.matrix(vecX[test, :].T), classes=states)
+    transductive_mc = MulticlassRegressionModel(co.matrix(vecX.T), classes=states, y=co.matrix(vecy), lbl_idx=train, trans_idx=test)
 
-    # train latent support vector regression
-    lsvr = LatentRidgeRegression(theta=1.0, lam=0.00001, gam=1.0*float(len(train)))
-    (_, train_lats) = lsvr.fit(train_mc, max_iter=200)
-    (y_pred_lrr, lats) = lsvr.predict(test_mc)
+    lsvr = TransductiveLatentRidgeRegression(theta=0.9, lam=0.00001, gam=0.5*float(len(train)+len(test)))
+    (y_pred_lrr, lats) = lsvr.fit(transductive_mc, max_iter=50)
     y_pred_lrr = np.array(y_pred_lrr)[:, 0]
     lats = np.array(lats)
     lrr_abs = calc_error(vecy[test], y_pred_lrr)
@@ -124,6 +123,18 @@ def single_run(vecX, vecy, vecz=None, states=2, plot=False):
     lrr_ars = 0.0
     if vecz is not None:
         lrr_ars = adjusted_rand_score(vecz[test], lats)
+
+    # train latent support vector regression
+    # lsvr = LatentRidgeRegression(theta=1.0, lam=0.00001, gam=1.0*float(len(train)))
+    # (_, train_lats) = lsvr.fit(train_mc, max_iter=200)
+    # (y_pred_lrr, lats) = lsvr.predict(test_mc)
+    # y_pred_lrr = np.array(y_pred_lrr)[:, 0]
+    # lats = np.array(lats)
+    # lrr_abs = calc_error(vecy[test], y_pred_lrr)
+    # lrr_mse = root_mean_squared_error(vecy[test], y_pred_lrr)
+    # lrr_ars = 0.0
+    # if vecz is not None:
+    #     lrr_ars = adjusted_rand_score(vecz[test], lats)
 
     # krr = LatentClusterRegression(cluster=states, l=0.00001, gamma=0.2*float(len(train)))
     # (_, _,) = krr.fit(co.matrix(vecX[train, :].T), co.matrix(vecy[train]), max_iter=200)
@@ -227,7 +238,7 @@ if __name__ == '__main__':
     # normalize data
     vecy = vecy-np.mean(vecy)
     vecX = vecX-np.mean(vecX)
-    vecX /= np.max(vecX)
+    # vecX /= np.max(vecX)
     vecy /= np.max(vecy)
 
     vecX = np.hstack((vecX, np.ones((vecX.shape[0], 1))))
