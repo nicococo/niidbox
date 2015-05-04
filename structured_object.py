@@ -17,7 +17,6 @@ class StructuredObject(object):
     def __init__(self, X, y=None):
         self.X = X
         self.y = y
-
         # assume either co.matrix or list-of-objects
         if isinstance(X, matrix):
             (self.feats, self.samples) = X.size
@@ -29,7 +28,7 @@ class StructuredObject(object):
 
     def get_hotstart_sol(self): 
         print('Generate a random solution vector for hot start.')
-        return normal(self.get_num_dims(), 1)
+        return 10.0*normal(self.get_num_dims(), 1)
 
     def update_solution(self, sol):
         self.sol = sol

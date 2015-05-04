@@ -1,34 +1,35 @@
 import numpy as np
-from cvxopt import matrix, normal, mul
+from cvxopt import matrix, mul
 
 from structured_object import StructuredObject
 
 
 class MulticlassRegressionModel(StructuredObject):
-    """ Latent Multi-class Regression Map.
+    """ (Transductive) Multi-class Regression Map.
         Number of latent classes must be set in advance.
         Target values 'y' are continuous regression targets.
+
+        For use in transductive settings, 'trans_idx' contains
+        the indices of elements in 'X' that do not have any
+        regression targets.
     """
     num_classes = -1  # (scalar) number of classes
+    trans_idx = None
 
-    def __init__(self, X, classes, y=None):
-        """ The number of classes directly translate into individual indices
-            therefore ensure that y >= 0.
-        """
+    def __init__(self, X, classes, y=None, trans_idx=None):
         StructuredObject.__init__(self, X, y)
-        self.num_classes = classes      
+        self.num_classes = classes
+        self.trans_idx = trans_idx
+        if not trans_idx:
+            self.trans_idx = list()
 
-    def get_hotstart_sol(self): 
-        print('Generate a random solution vector for hot start.')
-        return 10.0*normal(self.get_num_dims(), 1)
-
-    def map(self, idx=-1, add_loss=False, add_prior=False):
+    def map(self, idx=-1, add_loss=False, add_prior=False, theta=0.5):
         # opt_type = 'quadratic':
         # the argmax is equal to the argmax of the linear function
         # foo = -normSol + 2*foo - normPsi
         # since ||\Psi(x_i,z)|| = ||\phi(x_i)|| = y \forall z
         # and normSol is also constant
-        if isinstance(self.sol, list):
+        if isinstance(self.sol, list) and not idx in self.trans_idx:
             sol_v = self.sol[0]
             sol_u = self.sol[1]
             target = 0.0
@@ -42,11 +43,11 @@ class MulticlassRegressionModel(StructuredObject):
             f_squares = target - u.trans()*self.X[:, idx]
             f_squares = mul(f_squares, f_squares)
 
-            foo = f_density - f_squares
+            foo = (1.0-theta) * f_density - theta * f_squares
         else:
             v = matrix(np.array(self.sol).reshape((self.feats, self.num_classes), order='F'))
             f_density = v.trans()*self.X[:, idx]
-            foo = f_density
+            foo = (1.0-theta) * f_density
 
         # highest value first
         inds = np.argsort(-foo, axis=0)[0]
@@ -67,3 +68,6 @@ class MulticlassRegressionModel(StructuredObject):
 
     def get_num_dims(self):
         return self.feats*self.num_classes
+
+    def evaluate(self, pred):
+        super(MulticlassRegressionModel, self).evaluate(pred)
