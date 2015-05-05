@@ -3,13 +3,13 @@ import matplotlib.pyplot as plt
 import cvxopt as co
 
 from sklearn.svm import SVR
-from sklearn.metrics import mean_squared_error, r2_score, mean_absolute_error, adjusted_rand_score
+from sklearn.metrics import median_absolute_error, mean_squared_error, r2_score, mean_absolute_error, adjusted_rand_score
 from sklearn.datasets import load_svmlight_file
 import sklearn.cluster as cl
 
 from latent_svr import LatentSVR
 from latent_ridge_regression import LatentRidgeRegression, TransductiveLatentRidgeRegression
-from multiclass_regression_model import MulticlassRegressionModel
+from multiclass_regression_model import MulticlassRegressionModel, TransductiveMulticlassRegressionModel
 from latent_cluster_regression import LatentClusterRegression
 
 
@@ -64,90 +64,60 @@ def get_1d_toy_data(plot_data=False):
     return vecX, vecy, vecz
 
 
-def calc_error(truth, preds):
-    # return root_mean_squared_error(truth, preds)
-    return mean_absolute_error(truth, preds)
-    # return r2_score(truth, preds)
+def measure_regression_performance(truth, preds):
+    """ Measure regression performance
+    :param truth: true values
+    :param preds: predictions
+    :return: list of error measures and corresponding names and abbreviations
+    """
+    names = []
+    abbrv = []
+    errs = []
+
+    errs.append(mean_absolute_error(truth, preds))
+    names.append('Mean Absolute Error')
+    abbrv.append('MAE')
+
+    errs.append(mean_squared_error(truth, preds))
+    names.append('Mean Squared Error')
+    abbrv.append('MSE')
+
+    errs.append(np.sqrt(mean_squared_error(truth, preds)))
+    names.append('Root Mean Squared Error')
+    abbrv.append('RMSE')
+
+    errs.append(median_absolute_error(truth, preds))
+    names.append('Median Absolute Error')
+    abbrv.append('MedAE')
+
+    errs.append(r2_score(truth, preds))
+    names.append('R2 Score')
+    abbrv.append('R2')
+    return errs, names, abbrv
 
 
-def root_mean_squared_error(truth, preds):
-    return np.sqrt(mean_squared_error(truth, preds))
-
-
-def mean_abs_error(truth, preds):
-    print '--------------'
-    print preds.shape
-    print '--------------'
-    return np.sum(np.abs(truth-preds))
-
-
-def single_run(vecX, vecy, vecz=None, states=2, plot=False):
-    # generate training samples
-    samples = vecX.shape[0]
-    feats = vecX.shape[1]
-    train_frac = 0.05
-    inds = np.random.permutation(range(samples))
-    train = inds[:np.floor(samples*train_frac)]
-    test = inds[np.floor(samples*train_frac):]
-
+def method_ridge_regression(vecX, vecy, train, test, states=2, params=[0.0001]):
     # OLS solution
     # vecX in (samples x dims)
     # vecy in (samples)
     # w in (dims)
     E = np.zeros((vecX.shape[1], vecX.shape[1]))
-    np.fill_diagonal(E, 0.00001)
+    np.fill_diagonal(E, params)
     XXt = vecX[train, :].T.dot(vecX[train, :]) + E
     XtY = (vecX[train, :].T.dot(vecy[train]))
     w = np.linalg.inv(XXt).dot(XtY.T)
-    y_pred_rr = w.T.dot(vecX[test, :].T).T
-    rr_abs = calc_error(vecy[test], y_pred_rr)
-    rr_mse = root_mean_squared_error(vecy[test], y_pred_rr)
+    return 'Ridge Regression', 'RR', w.T.dot(vecX[test, :].T).T, np.ones(len(test))
 
+
+def method_svr(vecX, vecy, train, test, states=2, params=[1.0, 0.1, 'linear']):
     # train ordinary support vector regression
-    clf = SVR(C=1.0, epsilon=0.1, kernel='linear', shrinking=False)
+    clf = SVR(C=params[0], epsilon=params[1], kernel=params[2], shrinking=False)
     clf.fit(vecX[train, :], vecy[train])
-    y_pred_svr = clf.predict(vecX[test, :])
-    svr_abs = calc_error(vecy[test], y_pred_svr)
-    svr_mse = root_mean_squared_error(vecy[test], y_pred_svr)
+    return 'Support Vector Regression', 'SVR', clf.predict(vecX[test, :]), np.ones(len(test))
 
-    train_mc = MulticlassRegressionModel(co.matrix(vecX[train, :].T), classes=states, y=co.matrix(vecy[train]))
-    test_mc = MulticlassRegressionModel(co.matrix(vecX[test, :].T), classes=states)
-    transductive_mc = MulticlassRegressionModel(co.matrix(vecX.T), classes=states, y=co.matrix(vecy), lbl_idx=train, trans_idx=test)
 
-    lsvr = TransductiveLatentRidgeRegression(theta=0.9, lam=0.00001, gam=0.5*float(len(train)+len(test)))
-    (y_pred_lrr, lats) = lsvr.fit(transductive_mc, max_iter=50)
-    y_pred_lrr = np.array(y_pred_lrr)[:, 0]
-    lats = np.array(lats)
-    lrr_abs = calc_error(vecy[test], y_pred_lrr)
-    lrr_mse = root_mean_squared_error(vecy[test], y_pred_lrr)
-    lrr_ars = 0.0
-    if vecz is not None:
-        lrr_ars = adjusted_rand_score(vecz[test], lats)
-
-    # train latent support vector regression
-    # lsvr = LatentRidgeRegression(theta=1.0, lam=0.00001, gam=1.0*float(len(train)))
-    # (_, train_lats) = lsvr.fit(train_mc, max_iter=200)
-    # (y_pred_lrr, lats) = lsvr.predict(test_mc)
-    # y_pred_lrr = np.array(y_pred_lrr)[:, 0]
-    # lats = np.array(lats)
-    # lrr_abs = calc_error(vecy[test], y_pred_lrr)
-    # lrr_mse = root_mean_squared_error(vecy[test], y_pred_lrr)
-    # lrr_ars = 0.0
-    # if vecz is not None:
-    #     lrr_ars = adjusted_rand_score(vecz[test], lats)
-
-    # krr = LatentClusterRegression(cluster=states, l=0.00001, gamma=0.2*float(len(train)))
-    # (_, _,) = krr.fit(co.matrix(vecX[train, :].T), co.matrix(vecy[train]), max_iter=200)
-    # (y_pred_lrr, lats) = krr.predict(co.matrix(vecX[test, :].T))
-    # y_pred_lrr = np.array(y_pred_lrr)[:, 0]
-    # lats = np.array(lats)
-    # lrr_mse = root_mean_squared_error(vecy[test], y_pred_lrr)
-    # lrr_abs = calc_error(vecy[test], y_pred_lrr)
-    # if vecz is not None:
-    #     lrr_ars = adjusted_rand_score(vecz[test], lats)
-    # lsvr = krr
-
-    # KMEANS + RIDGE REGRESSION
+def method_krr(vecX, vecy, train, test, states=2, params=[0.0001]):
+    feats = vecX.shape[1]
     kmeans = cl.KMeans(n_clusters=states, init='random', n_init=10, max_iter=100, tol=0.0001)
     kmeans.fit(vecX[train, :])
     sol = np.zeros((states, feats))
@@ -155,28 +125,131 @@ def single_run(vecX, vecy, vecz=None, states=2, plot=False):
         inds = np.where(kmeans.labels_ == i)[0]
         ny = vecy[train[inds]].reshape(len(inds), 1)
         nX = vecX[train[inds], :].reshape(len(inds), feats)
-        foo = lsvr.train_model(nX, ny)
+        lrr = LatentRidgeRegression(1.0, params[0])
+        foo = lrr.train_model(nX, ny)
         sol[i, :] = np.array(foo).reshape(1, feats)
-
     lbls = kmeans.predict(vecX[test, :])
-    krr_ars = 0.0
-    if vecz is not None:
-        krr_ars = adjusted_rand_score(vecz[test], lbls)
-    print lbls.shape
-    print vecX[test, :].shape
-    print sol[lbls, :].shape
-    y_pred_krr = np.sum(sol[lbls, :] * vecX[test, :], axis=1)
-    krr_abs = calc_error(vecy[test], y_pred_krr)
-    krr_mse = root_mean_squared_error(vecy[test], y_pred_krr)
+    return 'k-means + Ridge Regression', 'kRR', np.sum(sol[lbls, :] * vecX[test, :], axis=1), lbls
+
+
+def method_tkrr(vecX, vecy, train, test, states=2, params=[0.0001]):
+    feats = vecX.shape[1]
+    kmeans = cl.KMeans(n_clusters=states, init='random', n_init=10, max_iter=100, tol=0.0001)
+    kmeans.fit(vecX)
+    sol = np.zeros((states, feats))
+    for i in range(states):
+        sinds = np.where(kmeans.labels_ == i)[0]
+        inds = []
+        for j in sinds:
+            if j in train:
+                inds.append(j)
+        ny = vecy[inds].reshape(len(inds), 1)
+        nX = vecX[inds, :].reshape(len(inds), feats)
+
+        lrr = LatentRidgeRegression(1.0, params[0])
+        foo = lrr.train_model(nX, ny)
+        sol[i, :] = np.array(foo).reshape(1, feats)
+    lbls = kmeans.labels_[test]
+    return 'Transductive k-means + Ridge Regression', 'TkRR', np.sum(sol[lbls, :] * vecX[test, :], axis=1), lbls
+
+
+def method_tlrr(vecX, vecy, train, test, states=2, params=[0.5, 0.0001, 1.0]):
+    transductive_mc = TransductiveMulticlassRegressionModel(co.matrix(vecX.T), classes=states, y=co.matrix(vecy), lbl_idx=train, trans_idx=test)
+    lsvr = TransductiveLatentRidgeRegression(theta=params[0], lam=params[1], gam=params[2]*float(len(train)+len(test)))
+    (y_pred_lrr, lats) = lsvr.fit(transductive_mc, max_iter=50)
+    return 'Transductive Latent Ridge Regression', 'TkRR', np.array(y_pred_lrr)[:, 0], np.array(lats)
+
+
+def method_lrr(vecX, vecy, train, test, states=2, params=[0.5, 0.0001, 1.0]):
+    train_mc = MulticlassRegressionModel(co.matrix(vecX[train, :].T), classes=states, y=co.matrix(vecy[train]))
+    test_mc = MulticlassRegressionModel(co.matrix(vecX[test, :].T), classes=states)
+
+    lsvr = LatentRidgeRegression(theta=params[0], lam=params[1], gam=params[2]*float(len(train)))
+    (_, train_lats) = lsvr.fit(train_mc, max_iter=50)
+    (y_pred_lrr, lats) = lsvr.predict(test_mc)
+    return 'Transductive Latent Ridge Regression', 'TkRR', np.array(y_pred_lrr)[:, 0], np.array(lats)
+
+
+def method_flexmix(vecX, vecy, train, test, states=2, params=[0.5, 0.0001, 1.0]):
+    # Use latent class regression FlexMix package from R
+    import rpy2.robjects as robjects
+    import pandas.rpy.common as com
+    import pandas as pd
+    r = robjects.r
+    r.library("flexmix")
+
+    feats = vecX.shape[1]
+    trainData = np.hstack((vecX[train, 0:feats-1].reshape(-1, 1)))
+    testData = np.hstack((vecX[test, 0:feats-1].reshape(-1, 1)))
+    df_train = pd.DataFrame(trainData)
+    df_test = pd.DataFrame(testData)
+
+    colNames = []
+    for i in range(feats-1):
+        colNames.append(str(i))
+    colNames.append('y')
+    df_train.columns = colNames
+    df_test.columns = colNames
+
+    df_train_r = com.convert_to_r_dataframe(df_train)
+    df_test_r = com.convert_to_r_dataframe(df_test)
+
+    %R mycont <- list(iter = 200, tol = 0.001, class = "CEM")
+    %R as(mycont, "FLXcontrol")
+
+    model = r.flexmix(robjects.Formula("y ~ ."),data=df_train, k=states)
+
+    flexmix_fit_lbls = np.array(r.clusters(model))
+    flexmix_pred_lbls = np.array(r.clusters(model,newdata=df_test_r))
+
+    pr = r.predict(model, newdata=df_test_r)
+    df = com.convert_robj(pr)
+    s = pd.Series(df)
+    aux = s.values
+    dim = aux.shape[0]
+    y_pred = np.zeros((len(y_test),dim))
+
+    dim = aux.shape[0]
+    y_pred = np.zeros((len(y_test),dim))
+    for i in range(dim):
+        y_pred[:,i] = np.copy(aux[i]).reshape(1,-1)
+    y_pred_flx = np.zeros(len(y_test))
+    for i in range (len(y_pred_flx)):
+        y_pred_flx[i] = y_pred[i, flexmix_pred_lbls[i]-1]
+    return 'FlexMix', 'FlexMix', y_pred_flx, np.array(lats)
+
+
+def single_run(methods, vecX, vecy, vecz=None, train_frac=0.05, states=2, plot=False):
+    # generate training samples
+    samples = vecX.shape[0]
+    inds = np.random.permutation(range(samples))
+    train = inds[:np.floor(samples*train_frac)]
+    test = inds[np.floor(samples*train_frac):]
+
+    # normalize data
+    vecy = vecy-np.mean(vecy[train])
+    vecX = vecX-np.mean(vecX[train, :])
+    # vecX /= np.max(vecX)
+    vecy /= np.max(vecy[train])
+    vecX = np.hstack((vecX, np.ones((vecX.shape[0], 1))))
+
+    names = []
+    res = []
+    for m in methods:
+        (name, abbrv, pred, lats) = m(vecX, vecy, train, test, states=states)
+        res.append(measure_regression_performance(vecy[test], pred))
+        names.append(name)
 
     print('------------------------------------------')
-    print 'RR mse:        ', rr_mse
-    print 'SVR mse:       ', svr_mse
-    print 'KMeans mse:    ', krr_mse
-    print 'LatentRR  mse: ', lrr_mse
+    print 'Total data           :', len(train)+len(test)
+    print 'Labeled data (train) :', len(train)
+    print 'Unlabeled data (test):', len(test)
+    print 'Fraction             :', train_frac
+    print 'Max States           :', states
     print('------------------------------------------')
-    print 'LatentRR ars: ', lrr_ars
-    print 'Kmeans   ars: ', krr_ars
+    print ''.ljust(45), ': ', res[0][1]
+    for m in range(len(names)):
+        print names[m].ljust(45), ': ', res[m][0]
     print('------------------------------------------')
 
     if plot:
@@ -239,7 +312,7 @@ if __name__ == '__main__':
     vecy = vecy-np.mean(vecy)
     vecX = vecX-np.mean(vecX)
     # vecX /= np.max(vecX)
-    vecy /= np.max(vecy)
+    # vecy /= np.max(vecy)
 
     vecX = np.hstack((vecX, np.ones((vecX.shape[0], 1))))
     print '---------'
@@ -247,7 +320,9 @@ if __name__ == '__main__':
     print vecX.shape
     print '---------'
 
-    single_run(vecX, vecy, vecz, states=8, plot=True)
+    methods = [method_ridge_regression, method_svr, method_krr, method_tkrr, method_lrr, method_tlrr]
+
+    single_run(methods, vecX, vecy, vecz, train_frac=0.1, states=8, plot=False)
     single_run(vecX, vecy, vecz, states=2, plot=True)
 
     REPS = 20
