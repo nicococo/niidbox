@@ -85,8 +85,7 @@ class LatentRidgeRegression(AbstractLatentRegression):
         b = matrix(1.0, (n, 1))  # (exms x 1)
         return np.single(self.gamma*w.trans()*w - w.trans()*psi*b)
 
-    def get_regression_objective(self, w, psi):
-        b = self.sobj.y  # (exms x 1)
+    def get_regression_objective(self, w, psi, b):
         return self.lam*w.trans()*w + b.trans()*b - 2.0*w.trans()*psi*b + w.trans()*psi*psi.trans()*w
 
     def train_dc_single(self, max_iter=50, hotstart=None):
@@ -136,7 +135,7 @@ class LatentRidgeRegression(AbstractLatentRegression):
             # b = self.sobj.y  # (exms x 1)
             # phi = psi  # (dims x exms)
             # obj_regression = l*w.trans()*w + b.trans()*b - 2.0*w.trans()*phi*b + w.trans()*phi*phi.trans()*w
-            obj_regression = self.get_regression_objective(self.cls, psi)
+            obj_regression = self.get_regression_objective(self.cls, psi, self.sobj.y)
 
             old_obj = obj
             obj = self.theta * obj_regression + (1.0-self.theta) * obj_density
@@ -159,4 +158,92 @@ class LatentRidgeRegression(AbstractLatentRegression):
         latent = best_lats
         obj = best_obj
         return self.sol, self.cls, latent, obj, is_converged
+
+
+class TransductiveLatentRidgeRegression(LatentRidgeRegression):
+
+    def __init__(self, theta=0.5, lam=0.001, gam=1.0):
+        LatentRidgeRegression.__init__(self, theta, lam, gam)
+
+    def train_dc_single(self, max_iter=50, hotstart=None):
+        n = self.sobj.get_num_samples()
+        n_lbl = self.sobj.get_num_labeled_samples()
+
+        dims = self.sobj.get_num_dims()
+        self.sol = self.sobj.get_hotstart_sol()
+        self.cls = self.sobj.get_hotstart_sol()
+        if hotstart is not None and hotstart.size == (dims, 1):
+            print('New hotstart position defined.')
+            self.sol = hotstart
+
+        latent = [0.0]*n
+        psi = matrix(0.0, (dims, n))  # (dims x exm)
+        psi_lbl = matrix(0.0, (dims, n_lbl))  # (dims x exm)
+        obj = 1e09
+        old_obj = 1e10
+        rel = 1
+        iter = 0
+        is_converged = False
+
+        best_obj = 1e14
+        best_cls = 0
+        best_sol = 0
+        best_lats = []
+
+        # terminate if objective function value doesn't change much
+        while iter < max_iter and not is_converged:
+            # 1. linearize
+            # for the current solution compute the most likely latent variable configuration
+            self.sobj.update_solution([self.sol, self.cls])
+
+            for i in range(n):
+                (foo, latent[i], psi[:, i]) = self.sobj.map(i, add_prior=True, add_loss=True, theta=self.theta)
+
+            ind = 0
+            for idx in self.sobj.lbl_idx:
+                psi_lbl[:, ind] = self.sobj.get_labeled_joint_feature_map(idx, y=latent[idx])
+                ind += 1
+
+            self.sol = matrix(1.0/(2.0*self.gamma) * np.sum(psi, axis=1))
+            obj_density = self.get_density_objective(self.sol, psi)
+
+            # Solve the regression problem
+            vecy = np.array(matrix(self.sobj.y))[self.sobj.lbl_idx, 0]
+            vecX = np.array(psi_lbl.trans())
+            self.cls = self.train_model(vecX, vecy)
+            obj_regression = self.get_regression_objective(self.cls, psi_lbl, self.sobj.y[matrix(self.sobj.lbl_idx)])
+
+            old_obj = obj
+            obj = self.theta * obj_regression + (1.0-self.theta) * obj_density
+            rel = np.abs((old_obj - obj)/obj)
+            print('Iter={0} combined objective={1:4.2f} rel={2:2.4f} used_lats={3}'.format(iter, obj[0, 0], rel[0, 0], np.unique(latent).size))
+
+            if np.single(best_obj) > np.single(obj):
+                best_cls = self.cls
+                best_sol = self.sol
+                best_lats = latent
+                best_obj = obj
+
+            if iter > 3 and rel < 0.0001:
+                is_converged = True
+
+            iter += 1
+
+        self.cls = best_cls
+        self.sol = best_sol
+        latent = best_lats
+        obj = best_obj
+
+        ind = 0
+        vals = matrix(0.0, (n - n_lbl, 1))
+        structs = list()
+        for idx in self.sobj.trans_idx:
+            psi = self.sobj.get_labeled_joint_feature_map(idx, y=latent[idx])
+            vals[ind] = self.cls.trans() * psi + self.intercept
+            structs.append(latent[idx])
+            ind += 1
+
+        print np.unique(latent)
+        print np.unique(structs)
+        return vals, self.cls, structs, obj, is_converged
 
