@@ -157,7 +157,7 @@ def method_tlrr(vecX, vecy, train, test, states=2, params=[0.5, 0.0001, 1.0]):
     transductive_mc = TransductiveMulticlassRegressionModel(co.matrix(vecX.T), classes=states, y=co.matrix(vecy), lbl_idx=train, trans_idx=test)
     lsvr = TransductiveLatentRidgeRegression(theta=params[0], lam=params[1], gam=params[2]*float(len(train)+len(test)))
     (y_pred_lrr, lats) = lsvr.fit(transductive_mc, max_iter=50)
-    return 'Transductive Latent Ridge Regression', 'TkRR', np.array(y_pred_lrr)[:, 0], np.array(lats[test])
+    return 'Transductive Latent Ridge Regression', 'TLRR', np.array(y_pred_lrr)[:, 0], np.array(lats)[test]
 
 
 def method_lrr(vecX, vecy, train, test, states=2, params=[0.5, 0.0001, 1.0]):
@@ -167,7 +167,7 @@ def method_lrr(vecX, vecy, train, test, states=2, params=[0.5, 0.0001, 1.0]):
     lsvr = LatentRidgeRegression(theta=params[0], lam=params[1], gam=params[2]*float(len(train)))
     (_, train_lats) = lsvr.fit(train_mc, max_iter=50)
     (y_pred_lrr, lats) = lsvr.predict(test_mc)
-    return 'Transductive Latent Ridge Regression', 'TkRR', np.array(y_pred_lrr)[:, 0], np.array(lats)
+    return 'Transductive Latent Ridge Regression', 'LRR', np.array(y_pred_lrr)[:, 0], np.array(lats)
 
 
 def method_flexmix(vecX, vecy, train, test, states=2, params=[0.5, 0.0001, 1.0]):
