@@ -46,7 +46,7 @@ class MulticlassRegressionModel(StructuredObject):
             foo = (1.0 - theta) * f_density
 
         # highest value first
-        inds = np.argsort(-foo, axis=0)[0]
+        inds = np.argmax(foo, axis=0)
         cls = inds[0]
         val = foo[cls]
 
@@ -116,7 +116,7 @@ class TransductiveMulticlassRegressionModel(MulticlassRegressionModel):
             foo = (1.0 - theta) * f_density
 
         # highest value first
-        inds = np.argsort(-foo, axis=0)[0]
+        inds = np.argmax(foo, axis=0)
         cls = inds[0]
         val = foo[cls]
 

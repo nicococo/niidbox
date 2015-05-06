@@ -68,32 +68,26 @@ def measure_regression_performance(truth, preds):
     """ Measure regression performance
     :param truth: true values
     :param preds: predictions
-    :return: list of error measures and corresponding names and abbreviations
+    :return: list of error measures and corresponding names
     """
     names = []
-    abbrv = []
     errs = []
 
     errs.append(mean_absolute_error(truth, preds))
     names.append('Mean Absolute Error')
-    abbrv.append('MAE')
 
     errs.append(mean_squared_error(truth, preds))
     names.append('Mean Squared Error')
-    abbrv.append('MSE')
 
     errs.append(np.sqrt(mean_squared_error(truth, preds)))
     names.append('Root Mean Squared Error')
-    abbrv.append('RMSE')
 
     errs.append(median_absolute_error(truth, preds))
     names.append('Median Absolute Error')
-    abbrv.append('MedAE')
 
     errs.append(r2_score(truth, preds))
     names.append('R2 Score')
-    abbrv.append('R2')
-    return errs, names, abbrv
+    return errs, names
 
 
 def method_ridge_regression(vecX, vecy, train, test, states=2, params=[0.0001]):
@@ -106,14 +100,14 @@ def method_ridge_regression(vecX, vecy, train, test, states=2, params=[0.0001]):
     XXt = vecX[train, :].T.dot(vecX[train, :]) + E
     XtY = (vecX[train, :].T.dot(vecy[train]))
     w = np.linalg.inv(XXt).dot(XtY.T)
-    return 'Ridge Regression', 'RR', w.T.dot(vecX[test, :].T).T, np.ones(len(test))
+    return 'Ridge Regression', w.T.dot(vecX[test, :].T).T, np.ones(len(test))
 
 
 def method_svr(vecX, vecy, train, test, states=2, params=[1.0, 0.1, 'linear']):
     # train ordinary support vector regression
     clf = SVR(C=params[0], epsilon=params[1], kernel=params[2], shrinking=False)
     clf.fit(vecX[train, :], vecy[train])
-    return 'Support Vector Regression', 'SVR', clf.predict(vecX[test, :]), np.ones(len(test))
+    return 'Support Vector Regression', clf.predict(vecX[test, :]), np.ones(len(test))
 
 
 def method_krr(vecX, vecy, train, test, states=2, params=[0.0001]):
@@ -129,7 +123,7 @@ def method_krr(vecX, vecy, train, test, states=2, params=[0.0001]):
         foo = lrr.train_model(nX, ny)
         sol[i, :] = np.array(foo).reshape(1, feats)
     lbls = kmeans.predict(vecX[test, :])
-    return 'k-means + Ridge Regression', 'kRR', np.sum(sol[lbls, :] * vecX[test, :], axis=1), lbls
+    return 'k-means Ridge Regression', np.sum(sol[lbls, :] * vecX[test, :], axis=1), lbls
 
 
 def method_tkrr(vecX, vecy, train, test, states=2, params=[0.0001]):
@@ -150,14 +144,14 @@ def method_tkrr(vecX, vecy, train, test, states=2, params=[0.0001]):
         foo = lrr.train_model(nX, ny)
         sol[i, :] = np.array(foo).reshape(1, feats)
     lbls = kmeans.labels_[test]
-    return 'Transductive k-means + Ridge Regression', 'TkRR', np.sum(sol[lbls, :] * vecX[test, :], axis=1), lbls
+    return 'Transductive k-means Ridge Regression', np.sum(sol[lbls, :] * vecX[test, :], axis=1), lbls
 
 
 def method_tlrr(vecX, vecy, train, test, states=2, params=[0.5, 0.0001, 1.0]):
     transductive_mc = TransductiveMulticlassRegressionModel(co.matrix(vecX.T), classes=states, y=co.matrix(vecy), lbl_idx=train, trans_idx=test)
     lsvr = TransductiveLatentRidgeRegression(theta=params[0], lam=params[1], gam=params[2]*float(len(train)+len(test)))
     (y_pred_lrr, lats) = lsvr.fit(transductive_mc, max_iter=50)
-    return 'Transductive Latent Ridge Regression', 'TLRR', np.array(y_pred_lrr)[:, 0], np.array(lats)[test]
+    return 'Transductive Latent Ridge Regression', np.array(y_pred_lrr)[:, 0], np.array(lats)[test]
 
 
 def method_lrr(vecX, vecy, train, test, states=2, params=[0.5, 0.0001, 1.0]):
@@ -167,17 +161,61 @@ def method_lrr(vecX, vecy, train, test, states=2, params=[0.5, 0.0001, 1.0]):
     lsvr = LatentRidgeRegression(theta=params[0], lam=params[1], gam=params[2]*float(len(train)))
     (_, train_lats) = lsvr.fit(train_mc, max_iter=50)
     (y_pred_lrr, lats) = lsvr.predict(test_mc)
-    return 'Transductive Latent Ridge Regression', 'LRR', np.array(y_pred_lrr)[:, 0], np.array(lats)
+    return 'Latent Ridge Regression', np.array(y_pred_lrr)[:, 0], np.array(lats)
 
 
-def method_flexmix(vecX, vecy, train, test, states=2, params=[0.5, 0.0001, 1.0]):
+def method_flexmix(vecX, vecy, train, test, states=2, params=[]):
     # Use latent class regression FlexMix package from R
+    from rpy2.robjects.packages import importr
+    import rpy2.robjects as robjects
+    import rpy2.robjects.numpy2ri
+    import pandas.rpy.common as com
+    import pandas as pd
+    r = robjects.r
+    r.library("flexmix")
 
-    return 'FlexMix', 'FlexMix', y_pred_flx, np.array(lats)
+    feats = vecX.shape[1]-1
+    trainData = np.hstack((vecX[train, 0:feats], vecy[train].reshape(-1, 1)))
+    testData = np.hstack((vecX[test, 0:feats], vecy[test].reshape(-1, 1)))
+    df_train = pd.DataFrame(trainData)
+    df_test = pd.DataFrame(testData)
+    colNames = []
+    for i in range(feats):
+        colNames.append(str(i))
+    colNames.append('y')
+    df_train.columns = colNames
+    df_test.columns = colNames
+    df_train_r = com.convert_to_r_dataframe(df_train)
+    df_test_r = com.convert_to_r_dataframe(df_test)
+
+    model = r.flexmix(robjects.Formula("y ~ ."), data=df_train_r, k=states)
+
+    lats = np.zeros((vecy.shape[0], 1), dtype=int)
+    lats[train] = np.array(r.clusters(model)).reshape(-1, 1)
+    lats_pred = np.array(r.clusters(model, newdata=df_test_r)).reshape(-1, 1)
+    lats[test] = lats_pred
+    lats = np.concatenate(lats)
+
+    pr = r.predict(model, newdata=df_test_r)
+    df = com.convert_robj(pr)
+    s = pd.Series(df)
+    aux = s.values
+    dim = aux.shape[0]
+    y_pred = np.zeros((len(vecy[test]), dim))
+
+    for i in range(dim):
+        y_pred[:, i] = np.copy(aux[i]).reshape(1, -1)
+    y_pred_flx = np.zeros(len(vecy[test]))
+    for i in range(len(y_pred_flx)):
+        y_pred_flx[i] = y_pred[i, lats_pred[i]-1]
+
+    return 'FlexMix', np.array(y_pred_flx), np.array(lats[test])
+
 
 
 def single_run(methods, vecX, vecy, vecz=None, train_frac=0.05, states=2, plot=False):
     # generate training samples
+
     samples = vecX.shape[0]
     inds = np.random.permutation(range(samples))
     train = inds[:np.floor(samples*train_frac)]
@@ -193,9 +231,10 @@ def single_run(methods, vecX, vecy, vecz=None, train_frac=0.05, states=2, plot=F
     names = []
     res = []
     for m in methods:
-        (name, abbrv, pred, lats) = m(vecX, vecy, train, test, states=states)
-        res.append(measure_regression_performance(vecy[test], pred))
+        (name, pred, lats) = m(vecX, vecy, train, test, states=states)
         names.append(name)
+        print name
+        res.append(measure_regression_performance(vecy[test], pred))
 
     print('------------------------------------------')
     print 'Total data           :', len(train)+len(test)
@@ -247,7 +286,7 @@ def single_run(methods, vecX, vecy, vecz=None, train_frac=0.05, states=2, plot=F
 
         plt.show()
 
-    return rr_abs, svr_abs, krr_abs, lrr_abs, rr_mse, svr_mse, krr_mse, lrr_mse, krr_ars, lrr_ars
+    return names, res
 
 
 if __name__ == '__main__':
@@ -266,8 +305,8 @@ if __name__ == '__main__':
     (vecX, vecy, vecz) = get_1d_toy_data()
 
     # normalize data
-    vecy = vecy-np.mean(vecy)
-    vecX = vecX-np.mean(vecX)
+    # vecy = vecy-np.mean(vecy)
+    # vecX = vecX-np.mean(vecX)
     # vecX /= np.max(vecX)
     # vecy /= np.max(vecy)
 
@@ -277,7 +316,7 @@ if __name__ == '__main__':
     print vecX.shape
     print '---------'
 
-    methods = [method_ridge_regression, method_svr, method_krr, method_tkrr, method_lrr, method_tlrr]
+    methods = [method_ridge_regression, method_svr, method_krr, method_tkrr, method_flexmix, method_lrr, method_tlrr]
 
     single_run(methods, vecX, vecy, vecz, train_frac=0.1, states=8, plot=False)
     single_run(vecX, vecy, vecz, states=2, plot=True)
