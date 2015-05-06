@@ -245,5 +245,5 @@ class TransductiveLatentRidgeRegression(LatentRidgeRegression):
 
         print np.unique(latent)
         print np.unique(structs)
-        return vals, self.cls, structs, obj, is_converged
+        return vals, self.cls, latent, obj, is_converged
 

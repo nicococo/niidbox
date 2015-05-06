@@ -157,7 +157,7 @@ def method_tlrr(vecX, vecy, train, test, states=2, params=[0.5, 0.0001, 1.0]):
     transductive_mc = TransductiveMulticlassRegressionModel(co.matrix(vecX.T), classes=states, y=co.matrix(vecy), lbl_idx=train, trans_idx=test)
     lsvr = TransductiveLatentRidgeRegression(theta=params[0], lam=params[1], gam=params[2]*float(len(train)+len(test)))
     (y_pred_lrr, lats) = lsvr.fit(transductive_mc, max_iter=50)
-    return 'Transductive Latent Ridge Regression', 'TkRR', np.array(y_pred_lrr)[:, 0], np.array(lats)
+    return 'Transductive Latent Ridge Regression', 'TLRR', np.array(y_pred_lrr)[:, 0], np.array(lats)[test]
 
 
 def method_lrr(vecX, vecy, train, test, states=2, params=[0.5, 0.0001, 1.0]):
@@ -167,55 +167,12 @@ def method_lrr(vecX, vecy, train, test, states=2, params=[0.5, 0.0001, 1.0]):
     lsvr = LatentRidgeRegression(theta=params[0], lam=params[1], gam=params[2]*float(len(train)))
     (_, train_lats) = lsvr.fit(train_mc, max_iter=50)
     (y_pred_lrr, lats) = lsvr.predict(test_mc)
-    return 'Transductive Latent Ridge Regression', 'TkRR', np.array(y_pred_lrr)[:, 0], np.array(lats)
+    return 'Transductive Latent Ridge Regression', 'LRR', np.array(y_pred_lrr)[:, 0], np.array(lats)
 
 
 def method_flexmix(vecX, vecy, train, test, states=2, params=[0.5, 0.0001, 1.0]):
     # Use latent class regression FlexMix package from R
-    import rpy2.robjects as robjects
-    import pandas.rpy.common as com
-    import pandas as pd
-    r = robjects.r
-    r.library("flexmix")
 
-    feats = vecX.shape[1]
-    trainData = np.hstack((vecX[train, 0:feats-1].reshape(-1, 1)))
-    testData = np.hstack((vecX[test, 0:feats-1].reshape(-1, 1)))
-    df_train = pd.DataFrame(trainData)
-    df_test = pd.DataFrame(testData)
-
-    colNames = []
-    for i in range(feats-1):
-        colNames.append(str(i))
-    colNames.append('y')
-    df_train.columns = colNames
-    df_test.columns = colNames
-
-    df_train_r = com.convert_to_r_dataframe(df_train)
-    df_test_r = com.convert_to_r_dataframe(df_test)
-
-    %R mycont <- list(iter = 200, tol = 0.001, class = "CEM")
-    %R as(mycont, "FLXcontrol")
-
-    model = r.flexmix(robjects.Formula("y ~ ."),data=df_train, k=states)
-
-    flexmix_fit_lbls = np.array(r.clusters(model))
-    flexmix_pred_lbls = np.array(r.clusters(model,newdata=df_test_r))
-
-    pr = r.predict(model, newdata=df_test_r)
-    df = com.convert_robj(pr)
-    s = pd.Series(df)
-    aux = s.values
-    dim = aux.shape[0]
-    y_pred = np.zeros((len(y_test),dim))
-
-    dim = aux.shape[0]
-    y_pred = np.zeros((len(y_test),dim))
-    for i in range(dim):
-        y_pred[:,i] = np.copy(aux[i]).reshape(1,-1)
-    y_pred_flx = np.zeros(len(y_test))
-    for i in range (len(y_pred_flx)):
-        y_pred_flx[i] = y_pred[i, flexmix_pred_lbls[i]-1]
     return 'FlexMix', 'FlexMix', y_pred_flx, np.array(lats)
 
 
