@@ -30,6 +30,30 @@ def method_ridge_regression(vecX, vecy, train, test, states=2, params=[0.0001]):
     return 'Ridge Regression', w.T.dot(vecX[test, :].T).T, np.ones(len(test))
 
 
+def method_transductive_regression(vecX, vecy, train, test, states=2, params=[0.0001, 0.8, 0.2]):
+    # OLS solution
+    # vecX in (samples x dims)
+    # vecy in (samples)
+    # w in (dims)
+
+    # Stage 1: locally estimate the labels of the test samples
+    E = np.zeros((vecX.shape[1], vecX.shape[1]))
+    np.fill_diagonal(E, params[0])
+    XXt = vecX[train, :].T.dot(vecX[train, :]) + E
+    XtY = (vecX[train, :].T.dot(vecy[train]))
+    w = np.linalg.inv(XXt).dot(XtY.T)
+    vecy[test] = w.T.dot(vecX[test, :].T)
+
+    # Stage 2: perform global optimization with train + test samples
+    C1 = params[1]
+    C2 = params[2]
+    I = np.identity(vecX.shape[1])
+    XXt = I + C1*(vecX[train, :].T.dot(vecX[train, :])) + C2*(vecX[test, :].T.dot(vecX[test, :]))
+    XtY = C1*(vecX[train, :].T.dot(vecy[train])) + C2*(vecX[test, :].T.dot(vecy[test]))
+    w = np.linalg.inv(XXt).dot(XtY.T)
+    return 'Transductive Regression', w.T.dot(vecX[test, :].T).T, np.ones(len(test))
+
+
 def method_svr(vecX, vecy, train, test, states=2, params=[1.0, 0.1, 'linear']):
     # train ordinary support vector regression
     clf = SVR(C=params[0], epsilon=params[1], kernel=params[2], shrinking=False)

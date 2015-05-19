@@ -51,6 +51,7 @@ class Vol:
         # Now read all data from file
         vol = np.loadtxt(fileName, skiprows=3)
         vol = vol.reshape(self.sizeZ,self.sizeY,self.sizeX)
+        vol = np.flipud(vol)
         self.data = vol
         
         # Set the maximum and minimum voxel and world coordinates
@@ -61,11 +62,11 @@ class Vol:
         self.vMinZ = 0
         self.vMaxZ = self.sizeZ-1
         self.wminX = self.originX
-        self.wMaxX = self.originX + (self.sizeX-1)*self.stepX
+        self.wMaxX = self.originX + (self.sizeX)*self.stepX
         self.wminY = self.originY
-        self.wMaxY = self.originY + (self.sizeY-1)*self.stepY
+        self.wMaxY = self.originY + (self.sizeY)*self.stepY
         self.wminZ = self.originZ
-        self.wMaxZ = self.originZ + (self.sizeZ-1)*self.stepZ
+        self.wMaxZ = self.originZ + (self.sizeZ)*self.stepZ
     
 
     # Load data to volume structure
@@ -93,11 +94,11 @@ class Vol:
         self.vMinZ = 0
         self.vMaxZ = self.sizeZ-1
         self.wminX = self.originX
-        self.wMaxX = self.originX + (self.sizeX-1)*self.stepX
+        self.wMaxX = self.originX + (self.sizeX)*self.stepX
         self.wminY = self.originY
-        self.wMaxY = self.originY + (self.sizeY-1)*self.stepY
+        self.wMaxY = self.originY + (self.sizeY)*self.stepY
         self.wminZ = self.originZ
-        self.wMaxZ = self.originZ + (self.sizeZ-1)*self.stepZ
+        self.wMaxZ = self.originZ + (self.sizeZ)*self.stepZ
     
 
     # Save volume on file
@@ -149,20 +150,7 @@ class Vol:
                     f.write(str(subVol[z,y,x])+"\n")
         f.close()
  
-        
-    # Get the reservoir Z base coordinates
-    def getResBase(self):
-        refBase = np.zeros((self.sizeX,self.sizeY),dtype=int)
-        for x in range(self.sizeX):
-            for y in range(self.sizeY):
-                for z in range(self.sizeZ-1,-1,-1):
-                    if self.data[z,y,x] > -1e+30:
-                        refBase[x][y] = z
-                        break
-        return refBase                
-
-    
-    # Get the reservoir Z top coordinates
+     # Get the reservoir Z base coordinates
     def getResTop(self):
         refTop = np.zeros((self.sizeX,self.sizeY),dtype=int)
         for x in range(self.sizeX):
@@ -172,8 +160,20 @@ class Vol:
                         refTop[x][y] = z
                         break
         return refTop
-    
-    
+
+
+    # Get the reservoir Z top coordinates
+    def getResBase(self):
+        refBase = np.zeros((self.sizeX,self.sizeY),dtype=int)
+        for x in range(self.sizeX):
+            for y in range(self.sizeY):
+                for z in range(self.sizeZ-1,-1,-1):
+                    if self.data[z,y,x] > -1e+30:
+                        refBase[x][y] = z
+                        break
+        return refBase
+
+
     # Plot a slice from the volume with d% distance from the bottom of the reservoir
     def plotSlice(self, d, color_table=colorTable):
     
@@ -201,6 +201,8 @@ class Vol:
         # Create and display image
         img = Image.new( 'RGBA', (self.sizeX,self.sizeY), "white") # create a new white image
         pixels = img.load() # create the pixel map
+
+        print img.size[0],img.size[1]
 
         for i in range(img.size[0]):  # for every pixel
             for j in range(img.size[1]):
