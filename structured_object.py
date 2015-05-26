@@ -81,6 +81,7 @@ class TransductiveStructuredModel(object):
     label_inds = None  # index of corresponding data object for each label
     unlabeled_inds = None  # indices for unlabeled examples
 
+    latent_prev = None  # previous latent states
     latent = None  # target
 
     samples = -1  # (scalar) number of training data samples
@@ -116,6 +117,13 @@ class TransductiveStructuredModel(object):
     def get_hotstart(self):
         pass
 
+    def get_latent_diff(self):
+        if self.latent is None:
+            return -1
+        if self.latent_prev is None:
+            return 1e10
+        return np.sum(np.abs(self.latent-self.latent_prev))
+
     def get_num_labeled(self):
         return len(self.labels)
 
@@ -140,7 +148,7 @@ class TransductiveStructuredModel(object):
     def log_partition(self, sol):
         pass
 
-    def log_partition_derivatives(self, sol):
+    def log_partition_derivative(self, sol):
         pass
 
     def evaluate(self, true_labels):

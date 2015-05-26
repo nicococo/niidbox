@@ -22,23 +22,23 @@ def load_svmlight_data(fname):
 
 
 def get_1d_toy_data(plot_data=False):
-    grid_x = 200
+    grid_x = 1000
     # generate 2D grid
     gx = np.linspace(0, 1, grid_x)
 
     # latent variable z
     z = np.zeros(grid_x, dtype=np.uint8)
-    zx = np.where((gx > 0.2) & (gx < 0.6))[0]
-    z[zx] = 1
+    # zx = np.where((gx > 0.2) & (gx < 0.6))[0]
+    # z[zx] = 2
     zx = np.where(gx > 0.6)[0]
-    z[zx] = 2
+    z[zx] = 1
 
     # inputs  x
     # x = 4.0*np.sign(z-0.4)*gx + 2.0*np.sign(z-0.4) + 0.5*np.random.randn(grid_x)
     x = 4.0*np.sign(z-0.5)*gx + 0.5*(z+1.)*np.random.rand(grid_x)
     # x = 4.0*np.sign(z-0.5)*gx + 1.0*np.sign(z-0.5) + 0.8*np.random.randn(grid_x)
     # x = 8.0*gx + 0.4*np.random.randn(grid_xn)
-    # x = 1.0*gx*gx + 0.1*np.random.randn(grid_x)
+    x = 1.0*gx*gx + 0.1*np.random.randn(grid_x)
 
     # ..and corresponding target value y
     # y = -20.*z + x*(6.*z+1.) + 0.01*np.random.randn(grid_x)
@@ -217,7 +217,7 @@ def method_lrr(vecX, vecy, train, test, states=2, params=[0.5, 0.00001, 0.5]):
     return 'Latent Ridge Regression', np.array(y_pred_lrr)[:, 0], np.array(lats)
 
 
-def method_tcrfr(vecX, vecy, train, test, states=2, params=[0.9, 0.00001, 10.1]):
+def method_tcrfr(vecX, vecy, train, test, states=2, params=[0.5, 0.00001, 1.0]):
     model = TCrfRIndepModel(data=vecX.T, labels=vecy[train], label_inds=train, unlabeled_inds=test, states=states)
     tcrfr = TransductiveCrfRegression(reg_theta=params[0], reg_lambda=params[1], reg_gamma=params[2]*float(len(train)+len(test)))
     # tcrfr = TransductiveCrfRegression(reg_theta=params[0], reg_lambda=params[1], reg_gamma=params[2])
@@ -233,17 +233,12 @@ def method_tcrfr(vecX, vecy, train, test, states=2, params=[0.9, 0.00001, 10.1])
     plt.plot(vecX[test, 0], lats, 'ob', alpha=0.6, markersize=6.0)
 
     plt.subplot(1, 2, 2)
-    plt.plot(vecX[:, 0], vecy, '.g', alpha=0.1, markersize=10.0)
     plt.plot(vecX[train, 0], vecy[train], 'or', alpha=0.6, markersize=10.0)
     plt.plot(vecX[train, 0], model.latent[train], 'ob', alpha=0.6, markersize=6.0)
-    plt.plot(vecX[train, 0], vecy[train], 'xk', alpha=0.6, markersize=10.0)
     ytrain = model.get_labeled_predictions(tcrfr.u)
     plt.plot(vecX[train, 0], ytrain, 'xg', alpha=0.8, markersize=10.0)
 
     plt.show()
-
-
-
     return 'Transductive CRF Regression', y_preds, lats
 
 

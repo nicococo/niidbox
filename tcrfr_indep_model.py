@@ -40,8 +40,24 @@ class TCrfRIndepModel(TransductiveStructuredModel):
     def get_hotstart(self):
         return [np.random.randn(self.get_num_dims()), np.random.randn(self.get_num_dims())]
 
-    def log_partition_derivatives(self, sol):
-        super(TCrfRIndepModel, self).log_partition_derivatives(sol)
+    def log_partition_derivative(self, sol):
+        v = sol.reshape((self.feats, self.states), order='F')
+        # (A)
+        f = np.zeros((self.states, self.samples))
+        for s in range(self.states):
+            f[s, :] = np.exp(v[:, s].dot(self.data))
+        sum_f = np.sum(f, axis=0)
+        # (B)
+        for s in range(self.states):
+            f[s, :] /= sum_f
+        # (C)
+        phis = np.zeros((self.get_num_dims(), self.samples))
+        idx = 0
+        for s in range(self.states):
+            for feat in range(self.feats):
+                phis[idx, :] = self.data[feat, :] * f[s, :]
+                idx += 1
+        return np.sum(phis, axis=1)
 
     def log_partition(self, sol):
         v = sol.reshape((self.feats, self.states), order='F')
@@ -68,6 +84,8 @@ class TCrfRIndepModel(TransductiveStructuredModel):
             map_objs[s, self.label_inds] -= theta/2. * f_squares*f_squares
 
         # highest value first
+        if self.latent is not None:
+            self.latent_prev = self.latent.copy()
         self.latent = np.argmax(map_objs, axis=0)
         # print np.unique(self.latent)
         return self.get_joint_feature_maps()

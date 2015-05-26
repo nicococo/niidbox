@@ -13,10 +13,13 @@ class TransductiveCrfRegression(object):
     u = None
     obj = None
 
-    def __init__(self, reg_theta=0.5, reg_lambda=0.001, reg_gamma=1.0):
+    crf_grad_based_opt = False
+
+    def __init__(self, reg_theta=0.5, reg_lambda=0.001, reg_gamma=1.0, crf_grad_based_opt=True):
         self.reg_lambda = reg_lambda
         self.reg_gamma = reg_gamma
         self.reg_theta = reg_theta
+        self.crf_grad_based_opt = crf_grad_based_opt
 
     def crf_obj(self, x, model, psi):
         return self.reg_gamma/2.0*x.T.dot(x) - x.T.dot(psi) + model.log_partition(x)
@@ -26,22 +29,32 @@ class TransductiveCrfRegression(object):
 
     def estimate_crf_parameters(self, v, psi, model):
         # solve the crf
+        # hot start
         vstar = 1.0 / self.reg_gamma * psi
-        #  res = op.minimize(self.crf_obj, x0=vstar, jac=self.crf_grad, args=(model, psi), method='L-BFGS-B')
-        res = op.minimize(self.crf_obj, x0=vstar, args=(model, psi), method='L-BFGS-B')
-        print res.fun
-        #
-        # grad = vstar
-        # step_len = np.linalg.norm(vstar)/20.0  # 5%
-        # cnt_iter = 0
-        # max_iter = 100
-        # while np.linalg.norm(grad)/float(grad.shape[0]) >= 1e-3 and cnt_iter <= max_iter:
-        #     grad = self.crf_grad(vstar, model, psi)
-        #     vstar = vstar - step_len*grad/np.linalg.norm(grad)
-        #     print cnt_iter, '-', self.crf_obj(vstar, model, psi)
-        #     cnt_iter += 1
-
-        return res.fun, res.x
+        # res = op.minimize(self.crf_obj, x0=vstar, args=(model, psi), method='L-BFGS-B')
+        # print res.nfev, ' - ', res.nit, ' - ', res.fun
+        if not self.crf_grad_based_opt:
+            res = op.minimize(self.crf_obj, jac=self.crf_grad, x0=vstar, args=(model, psi), method='L-BFGS-B')
+            # print res.nfev, ' - ', res.nit, ' - ', res.fun
+            return res.fun, res.x
+        else:
+            # avoid objective function value calls:
+            # gradient based optimization
+            grad = vstar
+            step_len = np.linalg.norm(vstar)/100.0  # 1%
+            cnt_iter = 0
+            max_iter = 100
+            while (cnt_iter < 3 or np.linalg.norm(grad)/(float(grad.size)**2) >= 1e-3) and cnt_iter <= max_iter:
+                grad = self.crf_grad(vstar, model, psi)
+                vstar -= step_len*grad/np.linalg.norm(grad)
+                # print cnt_iter, '-', self.crf_obj(vstar, model, psi), ' - ', np.linalg.norm(grad)/(float(grad.size)**2)
+                cnt_iter += 1
+            return 0.0, vstar
+        # print self.crf_obj(vstar, model, psi)
+        # print cnt_iter, '-', self.crf_obj(vstar, model, psi), ' - ', np.linalg.norm(grad)/(float(grad.size)**2)
+        # print '-----------'
+        # print op.check_grad(self.crf_obj, self.crf_grad, vstar, model, psi)
+        # print '-----------'
 
     def estimate_regression_parameters(self, X, y):
         # solve the ridge regression problem
@@ -96,7 +109,7 @@ class TransductiveCrfRegression(object):
             # 3. estimate new regression parameters
             obj_regression, u = self.estimate_regression_parameters(phis.T, model.labels)
 
-            # 4. check termination
+            # 4.a. check termination based on objective function progress
             old_obj = obj
             obj = self.reg_theta * obj_regression + (1.0 - self.reg_theta) * obj_crf
             rel = np.abs((old_obj - obj) / obj)
@@ -105,6 +118,10 @@ class TransductiveCrfRegression(object):
             if best_sol[0] > obj:
                 best_sol = [obj, u, v]
             if cnt_iter > 3 and rel < 0.0001:
+                is_converged = True
+
+            # 4.b. check termination based on latent states changes
+            if model.get_latent_diff == 0:
                 is_converged = True
 
             cnt_iter += 1
