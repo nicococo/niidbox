@@ -29,7 +29,7 @@ class TransductiveCrfRegression(object):
 
     def estimate_crf_parameters(self, v, psi, model):
         # solve the crf
-        # hot start
+        # set hot start
         vstar = 1.0 / self.reg_gamma * psi
         # res = op.minimize(self.crf_obj, x0=vstar, args=(model, psi), method='L-BFGS-B')
         # print res.nfev, ' - ', res.nit, ' - ', res.fun
