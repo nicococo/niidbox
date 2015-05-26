@@ -24,7 +24,7 @@ class SSVM(object):
         N = self.sobj.get_num_samples()
         DIMS = self.sobj.get_num_dims()
 
-        w = self.sobj.get_hotstart_sol()
+        w = self.sobj.get_hotstart()
 
         slacks = matrix(0.0, (1,N))
         sol = matrix([[w.trans()],[slacks]]).trans()

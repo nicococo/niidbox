@@ -11,7 +11,8 @@ from latent_svr import LatentSVR
 from latent_ridge_regression import LatentRidgeRegression, TransductiveLatentRidgeRegression
 from multiclass_regression_model import MulticlassRegressionModel, TransductiveMulticlassRegressionModel
 from latent_cluster_regression import LatentClusterRegression
-
+from tcrf_regression import TransductiveCrfRegression
+from tcrfr_indep_model import TCrfRIndepModel
 
 def load_svmlight_data(fname):
     (X, y) = load_svmlight_file(fname)
@@ -21,26 +22,27 @@ def load_svmlight_data(fname):
 
 
 def get_1d_toy_data(plot_data=False):
-    grid_x = 1000
+    grid_x = 200
     # generate 2D grid
     gx = np.linspace(0, 1, grid_x)
 
     # latent variable z
     z = np.zeros(grid_x, dtype=np.uint8)
     zx = np.where((gx > 0.2) & (gx < 0.6))[0]
+    z[zx] = 1
     zx = np.where(gx > 0.6)[0]
     z[zx] = 2
 
     # inputs  x
-    x = 4.0*np.sign(z-0.4)*gx + 2.0*np.sign(z-0.4) + 0.5*np.random.randn(grid_x)
-    x = 4.0*np.sign(z-0.5)*gx + 0.5*(z+1.0)*np.random.randn(grid_x)
+    # x = 4.0*np.sign(z-0.4)*gx + 2.0*np.sign(z-0.4) + 0.5*np.random.randn(grid_x)
+    x = 4.0*np.sign(z-0.5)*gx + 0.5*(z+1.)*np.random.rand(grid_x)
     # x = 4.0*np.sign(z-0.5)*gx + 1.0*np.sign(z-0.5) + 0.8*np.random.randn(grid_x)
-    # x = 8.0*gx + 0.4*np.random.randn(grid_x)
+    # x = 8.0*gx + 0.4*np.random.randn(grid_xn)
     # x = 1.0*gx*gx + 0.1*np.random.randn(grid_x)
 
     # ..and corresponding target value y
-    y = -20.*z + x*(6.*z+1.) + 0.01*np.random.randn(grid_x)
-    y = -20.*z + x*(1.*z+1.) + 0.01*np.random.randn(grid_x)
+    # y = -20.*z + x*(6.*z+1.) + 0.01*np.random.randn(grid_x)
+    y = -20.*z + x*(1.*z+1.) + 0.1*np.random.randn(grid_x)
     # y = -20.*z + x*(6.*z+1.) + 0.3*np.random.randn(grid_x)
     # y = 4.*z + x*(6.*z+1.) + 0.01*np.random.randn(grid_x)
     # y = -8*z + x*(6.*z) + 0.001*np.random.randn(grid_x)
@@ -59,6 +61,32 @@ def get_1d_toy_data(plot_data=False):
         plt.plot(range(grid_x), 2.0*vecz-1.0, '-k', linewidth=2.0)
 
         plt.legend(['Labels', 'Inputs', 'Latent State'])
+        plt.show()
+
+    return vecX, vecy, vecz
+
+
+def get_1d_toy_data_1(n=600, lats=4, dims=10, plot_data=True):
+    nl = np.floor(n/lats)
+    vecX = 0.5*np.random.rand(nl, dims)
+    vecz = np.zeros(n)
+    for l in range(lats-1):
+        vecX = np.concatenate([vecX, 0.5*np.random.randn(nl, dims)+(l+1.0)*2.0])
+        vecz[(l+1.0)*nl:(l+1.0)*nl+nl] = l + 1.0
+    print vecX.shape
+    print vecz.shape
+    # ..and corresponding target value y
+    vecy = -0.2*(vecz+1.0) + 0.1*np.random.randn(n)
+    for d in range(dims):
+        # vecy += vecX[:, d]*(4.0*np.random.randn()+(vecz+1.0)+np.random.randn())
+        vecy += 0.1*vecX[:, d]*(vecz-0.5)*np.random.randn()
+
+    print vecX.shape
+    print vecy.shape
+
+    if plot_data:
+        plt.figure(1)
+        plt.plot(vecX[:, 0], vecy, '.g', alpha=0.4)
         plt.show()
 
     return vecX, vecy, vecz
@@ -88,6 +116,31 @@ def measure_regression_performance(truth, preds):
     errs.append(r2_score(truth, preds))
     names.append('R2 Score')
     return errs, names
+
+
+def method_transductive_regression(vecX, vecy, train, test, states=2, params=[0.0001, 0.8, 0.2]):
+    warning('This method does change the inputs.')
+    # OLS solution
+    # vecX in (samples x dims)
+    # vecy in (samples)
+    # w in (dims)
+
+    # Stage 1: locally estimate the labels of the test samples
+    E = np.zeros((vecX.shape[1], vecX.shape[1]))
+    np.fill_diagonal(E, params[0])
+    XXt = vecX[train, :].T.dot(vecX[train, :]) + E
+    XtY = (vecX[train, :].T.dot(vecy[train]))
+    w = np.linalg.inv(XXt).dot(XtY.T)
+    vecy[test] = w.T.dot(vecX[test, :].T)
+
+    # Stage 2: perform global optimization with train + test samples
+    C1 = params[1]
+    C2 = params[2]
+    I = np.identity(vecX.shape[1])
+    XXt = I + C1*(vecX[train, :].T.dot(vecX[train, :])) + C2*(vecX[test, :].T.dot(vecX[test, :]))
+    XtY = C1*(vecX[train, :].T.dot(vecy[train])) + C2*(vecX[test, :].T.dot(vecy[test]))
+    w = np.linalg.inv(XXt).dot(XtY.T)
+    return 'Transductive Regression', w.T.dot(vecX[test, :].T).T, np.ones(len(test))
 
 
 def method_ridge_regression(vecX, vecy, train, test, states=2, params=[0.0001]):
@@ -147,14 +200,14 @@ def method_tkrr(vecX, vecy, train, test, states=2, params=[0.0001]):
     return 'Transductive k-means Ridge Regression', np.sum(sol[lbls, :] * vecX[test, :], axis=1), lbls
 
 
-def method_tlrr(vecX, vecy, train, test, states=2, params=[0.5, 0.0001, 1.0]):
+def method_tlrr(vecX, vecy, train, test, states=2, params=[0.5, 0.00001, 0.5]):
     transductive_mc = TransductiveMulticlassRegressionModel(co.matrix(vecX.T), classes=states, y=co.matrix(vecy), lbl_idx=train, trans_idx=test)
     lsvr = TransductiveLatentRidgeRegression(theta=params[0], lam=params[1], gam=params[2]*float(len(train)+len(test)))
     (y_pred_lrr, lats) = lsvr.fit(transductive_mc, max_iter=50)
     return 'Transductive Latent Ridge Regression', np.array(y_pred_lrr)[:, 0], np.array(lats)[test]
 
 
-def method_lrr(vecX, vecy, train, test, states=2, params=[0.5, 0.0001, 1.0]):
+def method_lrr(vecX, vecy, train, test, states=2, params=[0.5, 0.00001, 0.5]):
     train_mc = MulticlassRegressionModel(co.matrix(vecX[train, :].T), classes=states, y=co.matrix(vecy[train]))
     test_mc = MulticlassRegressionModel(co.matrix(vecX[test, :].T), classes=states)
 
@@ -164,27 +217,55 @@ def method_lrr(vecX, vecy, train, test, states=2, params=[0.5, 0.0001, 1.0]):
     return 'Latent Ridge Regression', np.array(y_pred_lrr)[:, 0], np.array(lats)
 
 
+def method_tcrfr(vecX, vecy, train, test, states=2, params=[0.9, 0.00001, 10.1]):
+    model = TCrfRIndepModel(data=vecX.T, labels=vecy[train], label_inds=train, unlabeled_inds=test, states=states)
+    tcrfr = TransductiveCrfRegression(reg_theta=params[0], reg_lambda=params[1], reg_gamma=params[2]*float(len(train)+len(test)))
+    # tcrfr = TransductiveCrfRegression(reg_theta=params[0], reg_lambda=params[1], reg_gamma=params[2])
+    tcrfr.fit(model, max_iter=50)
+    y_preds, lats = tcrfr.predict(model)
+    print lats
+
+    plt.figure(1)
+    plt.subplot(1, 2, 1)
+    plt.plot(vecX[:, 0], vecy, '.g', alpha=0.1, markersize=10.0)
+    plt.plot(vecX[test, 0], vecy[test], 'or', alpha=0.6, markersize=10.0)
+    plt.plot(vecX[test, 0], y_preds, 'oc', alpha=0.6, markersize=6.0)
+    plt.plot(vecX[test, 0], lats, 'ob', alpha=0.6, markersize=6.0)
+
+    plt.subplot(1, 2, 2)
+    plt.plot(vecX[:, 0], vecy, '.g', alpha=0.1, markersize=10.0)
+    plt.plot(vecX[train, 0], vecy[train], 'or', alpha=0.6, markersize=10.0)
+    plt.plot(vecX[train, 0], model.latent[train], 'ob', alpha=0.6, markersize=6.0)
+    plt.plot(vecX[train, 0], vecy[train], 'xk', alpha=0.6, markersize=10.0)
+    ytrain = model.get_labeled_predictions(tcrfr.u)
+    plt.plot(vecX[train, 0], ytrain, 'xg', alpha=0.8, markersize=10.0)
+
+    plt.show()
+
+
+
+    return 'Transductive CRF Regression', y_preds, lats
+
+
 def method_flexmix(vecX, vecy, train, test, states=2, params=[]):
     # Use latent class regression FlexMix package from R
-    from rpy2.robjects.packages import importr
     import rpy2.robjects as robjects
-    import rpy2.robjects.numpy2ri
     import pandas.rpy.common as com
     import pandas as pd
     r = robjects.r
     r.library("flexmix")
 
     feats = vecX.shape[1]-1
-    trainData = np.hstack((vecX[train, 0:feats], vecy[train].reshape(-1, 1)))
-    testData = np.hstack((vecX[test, 0:feats], vecy[test].reshape(-1, 1)))
-    df_train = pd.DataFrame(trainData)
-    df_test = pd.DataFrame(testData)
-    colNames = []
+    train_data = np.hstack((vecX[train, 0:feats], vecy[train].reshape(-1, 1)))
+    test_data = np.hstack((vecX[test, 0:feats], vecy[test].reshape(-1, 1)))
+    df_train = pd.DataFrame(train_data)
+    df_test = pd.DataFrame(test_data)
+    colnames = []
     for i in range(feats):
-        colNames.append(str(i))
-    colNames.append('y')
-    df_train.columns = colNames
-    df_test.columns = colNames
+        colnames.append(str(i))
+    colnames.append('y')
+    df_train.columns = colnames
+    df_test.columns = colnames
     df_train_r = com.convert_to_r_dataframe(df_train)
     df_test_r = com.convert_to_r_dataframe(df_test)
 
@@ -215,7 +296,6 @@ def method_flexmix(vecX, vecy, train, test, states=2, params=[]):
 
 def single_run(methods, vecX, vecy, vecz=None, train_frac=0.05, states=2, plot=False):
     # generate training samples
-
     samples = vecX.shape[0]
     inds = np.random.permutation(range(samples))
     train = inds[:np.floor(samples*train_frac)]
@@ -224,8 +304,16 @@ def single_run(methods, vecX, vecy, vecz=None, train_frac=0.05, states=2, plot=F
     # normalize data
     vecy = vecy-np.mean(vecy[train])
     vecX = vecX-np.mean(vecX[train, :])
-    # vecX /= np.max(vecX)
-    vecy /= np.max(vecy[train])
+    vecX /= np.max(np.abs(vecX[train, :]))
+    # vecX *= 4.
+    vecy /= np.max(np.abs(vecy[train]))
+    # vecy *= 10.
+
+    # print '-----------'
+    # print np.max(vecX[train, :])
+    # print np.min(vecX[train, :])
+    # print '-----------'
+
     vecX = np.hstack((vecX, np.ones((vecX.shape[0], 1))))
 
     names = []
@@ -304,21 +392,16 @@ if __name__ == '__main__':
     # vecy = vecy[:8000]
     (vecX, vecy, vecz) = get_1d_toy_data()
 
-    # normalize data
-    # vecy = vecy-np.mean(vecy)
-    # vecX = vecX-np.mean(vecX)
-    # vecX /= np.max(vecX)
-    # vecy /= np.max(vecy)
 
-    vecX = np.hstack((vecX, np.ones((vecX.shape[0], 1))))
-    print '---------'
-    print vecy.shape
-    print vecX.shape
-    print '---------'
+    methods = [method_ridge_regression, method_svr, method_krr, method_tkrr, method_flexmix,
+               method_transductive_regression, method_lrr, method_tlrr]
+    methods = [method_ridge_regression, method_svr, method_krr, method_tkrr,
+               method_transductive_regression, method_lrr, method_tlrr, method_tcrfr]
+    methods = [method_ridge_regression, method_svr, method_krr, method_tkrr,
+               method_lrr, method_tlrr, method_tcrfr]
+    methods = [method_ridge_regression, method_tcrfr]
 
-    methods = [method_ridge_regression, method_svr, method_krr, method_tkrr, method_flexmix, method_lrr, method_tlrr]
-
-    single_run(methods, vecX, vecy, vecz, train_frac=0.1, states=8, plot=False)
+    single_run(methods, vecX, vecy, vecz, train_frac=0.15, states=8, plot=False)
     single_run(vecX, vecy, vecz, states=2, plot=True)
 
     REPS = 20

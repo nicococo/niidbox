@@ -21,7 +21,7 @@ class AbstractLatentRegression(object):
         self.gamma = gam
         self.theta = theta
 
-    def fit(self, sobj, max_iter=50, n_init=10):
+    def fit(self, sobj, max_iter=50, n_init=5):
         self.sobj = sobj
         obj = 1e14
         best_cls = 0
@@ -41,6 +41,7 @@ class AbstractLatentRegression(object):
                 best_lats = n_lat
         self.sol = best_sol
         self.cls = best_cls
+        print self.theta
         return best_sol, best_lats
 
     def train_dc_single(self, max_iter=50, hotstart=None):
@@ -196,10 +197,12 @@ class TransductiveLatentRidgeRegression(LatentRidgeRegression):
             # for the current solution compute the most likely latent variable configuration
             self.sobj.update_solution([self.sol, self.cls])
 
+            print n
             for i in range(n):
                 (foo, latent[i], psi[:, i]) = self.sobj.map(i, add_prior=True, add_loss=True, theta=self.theta)
 
             ind = 0
+            print len(self.sobj.lbl_idx)
             for idx in self.sobj.lbl_idx:
                 psi_lbl[:, ind] = self.sobj.get_labeled_joint_feature_map(idx, y=latent[idx])
                 ind += 1
