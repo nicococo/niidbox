@@ -12,8 +12,15 @@ class TCrfRIndepModel(TransductiveStructuredModel):
     """
     states = -1  # (scalar) number of hidden states
 
-    def __init__(self, data, labels, label_inds, unlabeled_inds, states):
+    A = None  # Adjacency matrix
+
+    psi = None  # copy of the current joint feature map, corresponding to self.latent
+    phis = None  # copy of the current joint feature map, corresponding to self.latent
+    sol_dot_psi = None
+
+    def __init__(self, data, labels, label_inds, unlabeled_inds, states, A):
         TransductiveStructuredModel.__init__(self, data, labels, label_inds, unlabeled_inds)
+        self.A = A
         self.states = states
 
     def get_num_dims(self):
@@ -68,9 +75,10 @@ class TCrfRIndepModel(TransductiveStructuredModel):
         # = log sum_zN..z2 prod_{i/1}exp(<sol, Phi(x_i,z_i)>) * (sum_z1 exp(<sol, Phi(x_1,z_1)>))
         f_inner = np.zeros((self.states, self.samples))
         for s in range(self.states):
-            f_inner[s, :] = np.exp(v[:, s].dot(self.data))
-        f_inner = np.sum(f_inner, axis=0)
-        return np.log(np.prod(f_inner))
+            f_inner[s, :] = v[:, s].dot(self.data)
+        max_score = np.max(f_inner)
+        f_inner = np.sum(np.exp(f_inner - max_score), axis=0)
+        return np.log(np.prod(f_inner)) + max_score
 
     def maps(self, sol):
         theta = sol[0]
@@ -87,5 +95,23 @@ class TCrfRIndepModel(TransductiveStructuredModel):
         if self.latent is not None:
             self.latent_prev = self.latent.copy()
         self.latent = np.argmax(map_objs, axis=0)
+
+        # number of labeled neighbors that are in this state
+        y = self.latent[self.label_inds]
+        B = self.A[self.unlabeled_inds, :]
+        for s in range(self.states):
+            inds = np.where(s == y)[0]
+            cnts = np.sum(B[:, self.label_inds[inds]], axis=1)
+            map_objs[s, self.unlabeled_inds] += 100.*cnts
+
+        # highest value first
+        if self.latent is not None:
+            self.latent_prev = self.latent.copy()
+        self.latent = np.argmax(map_objs, axis=0)
+
+        phis, psi = self.get_joint_feature_maps()
+        self.psi = psi
+        self.phis = phis
+        self.sol_dot_psi = sol[2].T.dot(psi)
         # print np.unique(self.latent)
-        return self.get_joint_feature_maps()
+        return phis, psi
