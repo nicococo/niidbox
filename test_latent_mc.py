@@ -317,7 +317,7 @@ def method_flexmix(vecX, vecy, train, test, states=2, params=[], plot=False):
     return 'FlexMix', np.array(y_pred_flx), np.reshape(lats_pred, newshape=lats_pred.size)
 
 
-def single_run(methods, vecX, vecy, vecz, train_frac, states, rep, plot):
+def single_run(methods, vecX, vecy, vecz, train_frac, states, plot):
     # generate training samples
     samples = vecX.shape[0]
     inds = np.random.permutation(range(samples))
@@ -353,10 +353,40 @@ def single_run(methods, vecX, vecy, vecz, train_frac, states, rep, plot):
     for m in range(len(names)):
         print names[m].ljust(45), ': ', res[m][0].tolist()
     print('------------------------------------------')
-    return names, res, states, rep
+    return names, res
+
+
+def plot_results(name):
+    f = np.load('res_toy_000.npz')
+    means = f['means']
+    stds = f['stds']
+    states = f['states']
+    methods = f['methods']
+    names = f['names']
+    MEASURES = f['MEASURES']
+
+    plt.figure(1)
+    cnt = 0
+    fmts = ['--xm', '--xy', '--xc', ':xg', ':xm', '-ob', '-or']
+    lws = [2., 2., 2., 2., 2., 2., 2.]
+    for i in range(MEASURES):
+        plt.subplot(2, 3, i+1)
+        for m in range(len(methods)):
+            plt.errorbar(states, means[:, cnt], yerr=stds[:, cnt], fmt=fmts[m],
+                         elinewidth=1.0, linewidth=lws[m], alpha=0.6)
+            cnt += 1
+        plt.xlabel('Number of Latent States', fontsize=20)
+        plt.ylabel(f['measure_names'][i], fontsize=20)
+        plt.xlim([1, states[-1]])
+        if i == MEASURES-1:
+            plt.legend(names, loc=4, fontsize=18)
+
+    plt.show()
 
 
 if __name__ == '__main__':
+    plot_results('s')
+
     # (vecX, vecy) = load_svmlight_data('/home/nicococo/Data/housing_scale.dat')
     # (vecX, vecy) = load_svmlight_data('/home/nicococo/Data/space_ga_scale.dat')
     # (vecX, vecy) = load_svmlight_data('/home/nicococo/Data/mg_scale.dat')
@@ -378,38 +408,44 @@ if __name__ == '__main__':
 
     # methods = [method_flexmix, method_tcrfr_indep]
     # methods = [method_tcrfr_indep, method_tcrfr]
-    methods = [method_ridge_regression, method_tcrfr_indep]
+    # methods = [method_ridge_regression, method_tcrfr_indep]
 
     # single_run(methods, vecX, vecy, vecz, train_frac=0.75, states=3, plot=True)
 
     jobs = []
-    REPS = 2
+    REPS = 4
     MEASURES = 6
-    states = [1, 2, 4]
+    states = [1, 2, 3, 4, 5]
     #states = [4]
     mse = {}
+    sn_map = {}
+    cnt = 0
     for s in range(len(states)):
+        if s not in mse:
+            mse[s] = np.zeros((REPS, MEASURES*len(methods)))
         for n in range(REPS):
-            if s not in mse:
-                mse[s] = np.zeros((REPS, MEASURES*len(methods)))
-            job = Job(single_run, [methods, vecX, vecy, vecz, 0.75, states[s], n, False],
-                      mem_max='2G', mem_free='2G', name='TCRFR it({0}) state({1})'.format(n, s))
+            job = Job(single_run, [methods, vecX, vecy, vecz, 0.75, states[s], False],
+                      mem_max='2G', mem_free='2G', name='TCRFR it({0}) state({1})'.format(n, states[s]))
             jobs.append(job)
+            sn_map[cnt] = (s, n)
+            cnt += 1
+
+    print '---------------'
+    print mse
 
     processedJobs = process_jobs(jobs, max_processes=4)
     results = []
     print "ret fields AFTER execution on local machine"
     for (i, result) in enumerate(processedJobs):
         print "Job #", i
-        (names, res, s, n) = result
+        (names, res) = result
+        (s, n) = sn_map[i]
         perf = mse[s]
         cnt = 0
         for p in range(MEASURES):
             for m in range(len(methods)):
                 perf[n, cnt] = res[m][0][p]
                 cnt += 1
-
-
 
     measure_names = res[0][1]
     means = np.zeros((len(states), MEASURES*len(methods)))
@@ -422,23 +458,8 @@ if __name__ == '__main__':
         print states[key], ': ', np.mean(mse[key], axis=0).tolist()
         print 'STD ', np.std(mse[key], axis=0).tolist()
 
-    plt.figure(1)
-    cnt = 0
-    fmts = ['--xm', '--xy', '--xc', ':xg', ':xm', '-ob', '-or']
-    lws = [2., 2., 2., 2., 2., 2., 2.]
-    for i in range(MEASURES):
-        plt.subplot(2, 3, i+1)
-        for m in range(len(methods)):
-            plt.errorbar(states, means[:, cnt], yerr=stds[:, cnt], fmt=fmts[m],
-                         elinewidth=1.0, linewidth=lws[m], alpha=0.6)
-            cnt += 1
-        plt.xlabel('Number of Latent States', fontsize=20)
-        plt.ylabel(measure_names[i], fontsize=20)
-        plt.xlim([1, states[-1]])
-        if i == MEASURES-1:
-            plt.legend(names, loc=4, fontsize=18)
-
-    plt.show()
+    np.savez('res_toy_000.npz', MEASURES=MEASURES, methods=methods, means=means, stds=stds, states=states,
+             measure_names=measure_names, names=names)
 
     # ..and stop
     print('Finish!')
