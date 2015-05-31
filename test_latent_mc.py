@@ -1,5 +1,11 @@
-import numpy as np
+import matplotlib
+matplotlib.use('QT4Agg')
+# change to type 1 fonts!
+matplotlib.rcParams['pdf.fonttype'] = 42
+matplotlib.rcParams['ps.fonttype'] = 42
 import matplotlib.pyplot as plt
+
+import numpy as np
 import cvxopt as co
 
 from sklearn.svm import SVR
