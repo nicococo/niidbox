@@ -6,7 +6,6 @@ matplotlib.rcParams['ps.fonttype'] = 42
 import matplotlib.pyplot as plt
 
 import numpy as np
-import cvxopt as co
 
 from sklearn.svm import SVR
 from sklearn.metrics import median_absolute_error, mean_squared_error, r2_score, mean_absolute_error, adjusted_rand_score
@@ -15,7 +14,6 @@ import sklearn.cluster as cl
 
 from gridmap import Job, process_jobs
 
-from latent_svr import LatentSVR
 from latent_ridge_regression import LatentRidgeRegression, TransductiveLatentRidgeRegression
 from multiclass_regression_model import MulticlassRegressionModel, TransductiveMulticlassRegressionModel
 from latent_cluster_regression import LatentClusterRegression
@@ -413,7 +411,7 @@ if __name__ == '__main__':
     # single_run(methods, vecX, vecy, vecz, train_frac=0.75, states=3, plot=True)
 
     jobs = []
-    REPS = 25
+    REPS = 1
     MEASURES = 6
     states = [1, 2, 3, 4, 5, 6]
     #states = [4]
@@ -425,7 +423,7 @@ if __name__ == '__main__':
             mse[s] = np.zeros((REPS, MEASURES*len(methods)))
         for n in range(REPS):
             job = Job(single_run, [methods, vecX, vecy, vecz, 0.75, states[s], False],
-                      mem_max='2G', mem_free='2G', name='TCRFR it({0}) state({1})'.format(n, states[s]))
+                      mem_max='8G', mem_free='16G', name='TCRFR it({0}) state({1})'.format(n, states[s]))
             jobs.append(job)
             sn_map[cnt] = (s, n)
             cnt += 1
@@ -433,7 +431,7 @@ if __name__ == '__main__':
     print '---------------'
     print mse
 
-    processedJobs = process_jobs(jobs, max_processes=4)
+    processedJobs = process_jobs(jobs, max_processes=4, local=True)
     results = []
     print "ret fields AFTER execution on local machine"
     for (i, result) in enumerate(processedJobs):
