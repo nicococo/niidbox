@@ -13,13 +13,13 @@ from sklearn.datasets import load_svmlight_file
 import sklearn.cluster as cl
 
 from gridmap import Job, process_jobs
+import argparse, sys
 
-from latent_ridge_regression import LatentRidgeRegression, TransductiveLatentRidgeRegression
-from multiclass_regression_model import MulticlassRegressionModel, TransductiveMulticlassRegressionModel
-from latent_cluster_regression import LatentClusterRegression
+from latent_ridge_regression import LatentRidgeRegression
 from tcrf_regression import TransductiveCrfRegression
 from tcrfr_indep_model import TCrfRIndepModel
 from tcrfr_pair_model import TCrfRPairwisePotentialModel
+
 
 def load_svmlight_data(fname):
     (X, y) = load_svmlight_file(fname)
@@ -28,11 +28,10 @@ def load_svmlight_data(fname):
     return np.array(X.todense()), y.reshape(X.shape[0])
 
 
-def get_1d_toy_data(plot_data=False):
-    grid_x = 300
+def get_1d_toy_data(num_exms=300, plot_data=False):
+    grid_x = num_exms
     # generate 2D grid
     gx = np.linspace(0, 1, grid_x)
-
     # latent variable z
     z = np.zeros(grid_x, dtype=np.uint8)
     zx = np.where((gx > 0.3) & (gx < 0.6))[0]
@@ -60,42 +59,13 @@ def get_1d_toy_data(plot_data=False):
     vecz = z.reshape(grid_x)
     print vecX.shape
     print vecy.shape
-
     if plot_data:
         plt.figure(1)
         plt.plot(range(grid_x), vecy, 'or', alpha=0.5)
         plt.plot(range(grid_x), vecX, '.g', alpha=0.4)
         plt.plot(range(grid_x), 2.0*vecz-1.0, '-k', linewidth=2.0)
-
         plt.legend(['Labels', 'Inputs', 'Latent State'])
         plt.show()
-
-    return vecX, vecy, vecz
-
-
-def get_1d_toy_data_1(n=300, lats=3, dims=4, plot_data=True):
-    nl = np.floor(n/lats)
-    vecX = 0.5*np.random.rand(nl, dims)
-    vecz = np.zeros(n)
-    for l in range(lats-1):
-        vecX = np.concatenate([vecX, 0.5*np.random.randn(nl, dims)+(l+1.0)*2.0])
-        vecz[(l+1.0)*nl:(l+1.0)*nl+nl] = l + 1.0
-    print vecX.shape
-    print vecz.shape
-    # ..and corresponding target value y
-    vecy = -0.2*(vecz+1.0) + 0.1*np.random.randn(n)
-    for d in range(dims):
-        # vecy += vecX[:, d]*(4.0*np.random.randn()+(vecz+1.0)+np.random.randn())
-        vecy += 0.1*vecX[:, d]*(vecz-0.5)*np.random.randn()
-
-    print vecX.shape
-    print vecy.shape
-
-    if plot_data:
-        plt.figure(1)
-        plt.plot(vecX[:, 0], vecy, '.g', alpha=0.4)
-        plt.show()
-
     return vecX, vecy, vecz
 
 
@@ -103,24 +73,18 @@ def evaluate(truth, preds, true_lats, lats):
     """ Measure regression performance
     :return: list of error measures and corresponding names
     """
-    names = []
-    errs = []
-
+    names = list()
+    errs = list()
     errs.append(mean_absolute_error(truth, preds))
     names.append('Mean Absolute Error')
-
     errs.append(mean_squared_error(truth, preds))
     names.append('Mean Squared Error')
-
     errs.append(np.sqrt(mean_squared_error(truth, preds)))
     names.append('Root Mean Squared Error')
-
     errs.append(median_absolute_error(truth, preds))
     names.append('Median Absolute Error')
-
     errs.append(r2_score(truth, preds))
     names.append('R2 Score')
-
     errs.append(adjusted_rand_score(true_lats, lats))
     names.append('Adjusted Rand Score')
     return np.array(errs), names
@@ -131,7 +95,6 @@ def method_transductive_regression(vecX, vecy, train, test, states=2, params=[0.
     # vecX in (samples x dims)
     # vecy in (samples)
     # w in (dims)
-
     # Stage 1: locally estimate the labels of the test samples
     E = np.zeros((vecX.shape[1], vecX.shape[1]))
     np.fill_diagonal(E, params[0])
@@ -141,7 +104,6 @@ def method_transductive_regression(vecX, vecy, train, test, states=2, params=[0.
 
     bak = vecy[test]
     vecy[test] = w.T.dot(vecX[test, :].T)
-
     # Stage 2: perform global optimization with train + test samples
     C1 = params[1]
     C2 = params[2]
@@ -165,7 +127,7 @@ def method_tcrfr(vecX, vecy, train, test, states=2, params=[0.9, 0.00001, 0.5], 
     # model.test_qp_param()
 
     tcrfr = TransductiveCrfRegression(reg_theta=params[0], reg_lambda=params[1], reg_gamma=params[2]*float(len(train)+len(test)))
-    tcrfr.fit(model, max_iter=50, use_grads=False)
+    tcrfr.fit(model, max_iter=40, use_grads=False)
     y_preds, lats = tcrfr.predict(model)
     print lats
 
@@ -355,7 +317,7 @@ def single_run(methods, vecX, vecy, vecz, train_frac, states, plot):
 
 
 def plot_results(name):
-    f = np.load('res_toy_000.npz')
+    f = np.load(name)
     means = f['means']
     stds = f['stds']
     states = f['states']
@@ -378,43 +340,39 @@ def plot_results(name):
         plt.xlim([1, states[-1]])
         if i == MEASURES-1:
             plt.legend(names, loc=4, fontsize=18)
-
     plt.show()
 
 
 if __name__ == '__main__':
-    # plot_results('s')
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-m", "--max_states", help="Max state for testing (default=3).", default="3", type=int)
+    parser.add_argument("-f", "--train_frac", help="Fraction of training exms (default=0.75)", default=0.75, type=float)
+    parser.add_argument("-d", "--datapoints", help="Amount of data points (default=300)", default=300, type=int)
+    parser.add_argument("-r", "--reps", help="Number of repetitions (default 10)", default=10, type=int)
+    parser.add_argument("-p", "--processes", help="Number of processes (default 4)", default=4, type=int)
+    parser.add_argument("-l", "--local", help="Run local or distribute? (default True)", default=True, type=bool)
+    parser.add_argument("-s", "--set", help="Select active methods set. (default 'full')", default='full', type=str)
+    arguments = parser.parse_args(sys.argv[1:])
+    print arguments
 
-    # (vecX, vecy) = load_svmlight_data('/home/nicococo/Data/housing_scale.dat')
-    # (vecX, vecy) = load_svmlight_data('/home/nicococo/Data/space_ga_scale.dat')
-    # (vecX, vecy) = load_svmlight_data('/home/nicococo/Data/mg_scale.dat')
-    # (vecX, vecy) = load_svmlight_data('/home/nicococo/Data/mpg_scale.dat')
-    # (vecX, vecy) = load_svmlight_data('/home/nicococo/Data/usps')
-    # inds = np.where((vecy == 8.0) | (vecy == 1.0))[0]
-    # inds = np.random.permutation(inds)
-    # vecy = vecy[inds[:1000]]
-    # vecX = vecX[inds[:1000], :]
-    # (vecX, vecy) = load_svmlight_data('/home/nicococo/Data/YearPredictionMSD.t')
-    # vecX = vecX[:8000, :]
-    # vecy = vecy[:8000]
-    (vecX, vecy, vecz) = get_1d_toy_data()
+    # plot_results('res_toy_{0}.npz'.format(arguments.max_states))
+    (vecX, vecy, vecz) = get_1d_toy_data(num_exms=arguments.datapoints)
 
     # full stack of methods
-    methods = [method_ridge_regression, method_svr, method_krr,
-               method_transductive_regression, method_flexmix,
-               method_tcrfr_indep, method_tcrfr]
-
+    methods = [method_ridge_regression, method_tcrfr_indep]
+    if arguments.set == 'full':
+        methods = [method_ridge_regression, method_svr, method_krr,
+                   method_transductive_regression, method_flexmix,
+                   method_tcrfr_indep, method_tcrfr]
     # methods = [method_flexmix, method_tcrfr_indep]
     # methods = [method_tcrfr_indep, method_tcrfr]
     # methods = [method_ridge_regression, method_tcrfr_indep]
-
     # single_run(methods, vecX, vecy, vecz, train_frac=0.75, states=3, plot=True)
 
     jobs = []
-    REPS = 1
     MEASURES = 6
-    states = [1, 2, 3, 4, 5, 6]
-    #states = [4]
+    REPS = arguments.reps
+    states = range(1, arguments.max_states+1)
     mse = {}
     sn_map = {}
     cnt = 0
@@ -422,7 +380,7 @@ if __name__ == '__main__':
         if s not in mse:
             mse[s] = np.zeros((REPS, MEASURES*len(methods)))
         for n in range(REPS):
-            job = Job(single_run, [methods, vecX, vecy, vecz, 0.75, states[s], False],
+            job = Job(single_run, [methods, vecX, vecy, vecz, arguments.train_frac, states[s], False],
                       mem_max='8G', mem_free='16G', name='TCRFR it({0}) state({1})'.format(n, states[s]))
             jobs.append(job)
             sn_map[cnt] = (s, n)
@@ -431,7 +389,7 @@ if __name__ == '__main__':
     print '---------------'
     print mse
 
-    processedJobs = process_jobs(jobs, max_processes=4, local=True)
+    processedJobs = process_jobs(jobs, max_processes=arguments.processes, local=arguments.local)
     results = []
     print "ret fields AFTER execution on local machine"
     for (i, result) in enumerate(processedJobs):
@@ -456,8 +414,8 @@ if __name__ == '__main__':
         print states[key], ': ', np.mean(mse[key], axis=0).tolist()
         print 'STD ', np.std(mse[key], axis=0).tolist()
 
-    np.savez('res_toy_000.npz', MEASURES=MEASURES, methods=methods, means=means, stds=stds, states=states,
+    # save results
+    np.savez('res_toy_{0}.npz'.format(states), MEASURES=MEASURES, methods=methods, means=means, stds=stds, states=states,
              measure_names=measure_names, names=names)
-
     # ..and stop
     print('Finish!')
