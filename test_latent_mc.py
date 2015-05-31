@@ -6,6 +6,7 @@ matplotlib.rcParams['ps.fonttype'] = 42
 import matplotlib.pyplot as plt
 
 import numpy as np
+import scipy.sparse as sparse
 
 from sklearn.svm import SVR
 from sklearn.metrics import median_absolute_error, mean_squared_error, r2_score, mean_absolute_error, adjusted_rand_score
@@ -187,6 +188,7 @@ def method_krr(vecX, vecy, train, test, states=2, params=[0.0001], plot=False):
 
 def method_tcrfr_indep(vecX, vecy, train, test, states=2, params=[0.9, 0.00001, 0.4], plot=False):
     A = np.zeros((vecX.shape[0], vecX.shape[0]))
+    # A = sparse.lil_matrix((vecX.shape[0], vecX.shape[0]))
     for i in range(vecX.shape[0]-4):
         A[i, i+1] = 1
         A[i+1, i] = 1
@@ -350,7 +352,7 @@ if __name__ == '__main__':
     parser.add_argument("-d", "--datapoints", help="Amount of data points (default=300)", default=300, type=int)
     parser.add_argument("-r", "--reps", help="Number of repetitions (default 10)", default=10, type=int)
     parser.add_argument("-p", "--processes", help="Number of processes (default 4)", default=4, type=int)
-    parser.add_argument("-l", "--local", help="Run local or distribute? (default True)", default=True, type=bool)
+    parser.add_argument("-l", "--local", help="Run local or distribute? (default 1)", default=1, type=int)
     parser.add_argument("-s", "--set", help="Select active methods set. (default 'full')", default='full', type=str)
     arguments = parser.parse_args(sys.argv[1:])
     print arguments
@@ -359,7 +361,7 @@ if __name__ == '__main__':
     (vecX, vecy, vecz) = get_1d_toy_data(num_exms=arguments.datapoints)
 
     # full stack of methods
-    methods = [method_ridge_regression, method_tcrfr]
+    methods = [method_ridge_regression, method_tcrfr_indep]
     if arguments.set == 'full':
         methods = [method_ridge_regression, method_svr, method_krr,
                    method_transductive_regression, method_flexmix,
@@ -389,7 +391,7 @@ if __name__ == '__main__':
     print '---------------'
     print mse
 
-    processedJobs = process_jobs(jobs, max_processes=arguments.processes, local=arguments.local)
+    processedJobs = process_jobs(jobs, max_processes=arguments.processes, local=arguments.local >= 1)
     results = []
     print "ret fields AFTER execution on local machine"
     for (i, result) in enumerate(processedJobs):
