@@ -78,7 +78,10 @@ class TCrfRIndepModel(TransductiveStructuredModel):
             f_inner[s, :] = v[:, s].dot(self.data)
         max_score = np.max(f_inner)
         f_inner = np.sum(np.exp(f_inner - max_score), axis=0)
-        return np.log(np.prod(f_inner)) + max_score
+        foo = np.sum(np.log(f_inner) + max_score)
+        if np.isnan(foo) or np.isinf(foo):
+            print 'TCRFR Indep Model: the log_partition is NAN or INF!!'
+        return foo
 
     def maps(self, sol):
         theta = sol[0]

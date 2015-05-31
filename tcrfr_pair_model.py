@@ -144,9 +144,13 @@ class TCrfRPairwisePotentialModel(TransductiveStructuredModel):
         # = log sum_zN..z2 prod_{i/1}exp(<sol, Phi(x_i,z_i)>) * (sum_z1 exp(<sol, Phi(x_1,z_1)>))
         f_inner = np.zeros((self.S, self.samples))
         for s in range(self.S):
-            f_inner[s, :] = np.exp(v[:, s].dot(self.data))
-        f_inner = np.sum(f_inner, axis=0)
-        return np.log(np.prod(f_inner))
+            f_inner[s, :] = v[:, s].dot(self.data)
+        max_score = np.max(f_inner)
+        f_inner = np.sum(np.exp(f_inner - max_score), axis=0)
+        foo = np.sum(np.log(f_inner) + max_score)
+        if np.isnan(foo) or np.isinf(foo):
+            print 'TCRFR Pairwise Potential Model: the log_partition is NAN or INF!!'
+        return foo
 
     def get_gibbs_partition_derivative(self, sol, max_iter=5):
         """ Gibbs sampler for the expectation of psi-feature map

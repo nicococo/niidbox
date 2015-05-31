@@ -359,7 +359,7 @@ if __name__ == '__main__':
     (vecX, vecy, vecz) = get_1d_toy_data(num_exms=arguments.datapoints)
 
     # full stack of methods
-    methods = [method_ridge_regression, method_tcrfr_indep]
+    methods = [method_ridge_regression, method_tcrfr]
     if arguments.set == 'full':
         methods = [method_ridge_regression, method_svr, method_krr,
                    method_transductive_regression, method_flexmix,
