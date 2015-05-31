@@ -385,7 +385,7 @@ def plot_results(name):
 
 
 if __name__ == '__main__':
-    plot_results('s')
+    # plot_results('s')
 
     # (vecX, vecy) = load_svmlight_data('/home/nicococo/Data/housing_scale.dat')
     # (vecX, vecy) = load_svmlight_data('/home/nicococo/Data/space_ga_scale.dat')
@@ -413,9 +413,9 @@ if __name__ == '__main__':
     # single_run(methods, vecX, vecy, vecz, train_frac=0.75, states=3, plot=True)
 
     jobs = []
-    REPS = 4
+    REPS = 25
     MEASURES = 6
-    states = [1, 2, 3, 4, 5]
+    states = [1, 2, 3, 4, 5, 6]
     #states = [4]
     mse = {}
     sn_map = {}
