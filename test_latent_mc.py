@@ -393,7 +393,7 @@ if __name__ == '__main__':
             if s not in mse:
                 mse[s] = np.zeros((REPS, MEASURES*len(methods)))
             job = Job(single_run, [methods, vecX, vecy, vecz, 0.75, states[s], n, False],
-                      mem_max='2G', mem_free='2G', name='TCRFR: {0}({1})'.format(n, s))
+                      mem_max='2G', mem_free='2G', name='TCRFR it({0}) state({1})'.format(n, s))
             jobs.append(job)
 
     processedJobs = process_jobs(jobs, max_processes=4)
