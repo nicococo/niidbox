@@ -275,6 +275,7 @@ class TCrfRPairwisePotentialModel(TransductiveStructuredModel):
         solver.options['MOSEK'] = {msk.iparam.log: 0}
         solution = solver.qp(P, q, G, h, A, b, solver='mosek')
         res = solution['x']
+
         # print solution['primal objective']
         # obj = matrix(solution['primal objective'])
         # convert into state sequence
@@ -283,6 +284,22 @@ class TCrfRPairwisePotentialModel(TransductiveStructuredModel):
         vertices = len(self.V)
         offset = edges*states*states
         max_states = np.zeros(vertices)
+
+        # error check
+        print solution['status']
+        if res is None:
+            print('QP optimization did not finish (status):')
+            print 'max P - ', max(P)
+            print 'min P - ', min(P)
+            print 'Non-numbers in P - ', any(np.isnan(P)), any(np.isinf(P))
+            print 'max q - ', max(q)
+            print 'min q - ', min(q)
+            print 'Non-numbers in q - ', any(np.isnan(q)), any(np.isinf(q))
+            if self.latent is None:
+                return max_states
+            else:
+                return self.latent
+
         for v in range(vertices):
             max_states[v] = np.argmax(res[offset + v*states:offset + v*states + states])
         return max_states
