@@ -134,9 +134,9 @@ class TCrfRPairwisePotentialModel(TransductiveStructuredModel):
         return pmap
 
     def log_partition(self, sol):
-        sol = sol[self.S*self.S:]
-        v = sol.reshape((self.feats, self.S), order='F')
-        # approximation based on independent model
+        v_trans = sol[:self.S*self.S].reshape((self.S, self.S), order='F')
+        v_em = sol[self.S*self.S:].reshape((self.feats, self.S), order='F')
+        # pseudolikelihood approximation
         # log sum_Z exp(<sol, Psi(X,Z)>) ~
         # = log sum_Z exp(<sol, sum_i Phi(x_i,z_i)>)
         # = log sum_z1..zN prod_i exp(<sol, Phi(x_i,z_i)>)
@@ -144,7 +144,11 @@ class TCrfRPairwisePotentialModel(TransductiveStructuredModel):
         # = log sum_zN..z2 prod_{i/1}exp(<sol, Phi(x_i,z_i)>) * (sum_z1 exp(<sol, Phi(x_1,z_1)>))
         f_inner = np.zeros((self.S, self.samples))
         for s in range(self.S):
-            f_inner[s, :] = v[:, s].dot(self.data)
+            w = v_trans[s, self.latent]
+            foo = np.zeros(self.samples)
+            for n in range(len(self.N)):
+                foo[n] = np.sum(w[self.N[n]])
+            f_inner[s, :] = v_em[:, s].dot(self.data) + foo
         max_score = np.max(f_inner)
         f_inner = np.sum(np.exp(f_inner - max_score), axis=0)
         foo = np.sum(np.log(f_inner) + max_score)
@@ -283,18 +287,16 @@ class TCrfRPairwisePotentialModel(TransductiveStructuredModel):
         states = self.S
         vertices = len(self.V)
         offset = edges*states*states
-        max_states = np.zeros(vertices)
+        max_states = np.zeros(vertices, dtype='i')
 
         # error check
         print solution['status']
         if res is None:
             print('QP optimization did not finish (status):')
-            print 'max P - ', max(P)
-            print 'min P - ', min(P)
-            print 'Non-numbers in P - ', any(np.isnan(P)), any(np.isinf(P))
-            print 'max q - ', max(q)
-            print 'min q - ', min(q)
-            print 'Non-numbers in q - ', any(np.isnan(q)), any(np.isinf(q))
+            print 'max P - ', max(P), ' - min P - ', min(P)
+            # print 'Non-numbers in P - ', any(np.isnan(P)), any(np.isinf(P))
+            print 'max q - ', max(q), ' - min q - ', min(q)
+            # print 'Non-numbers in q - ', any(np.isnan(q)), any(np.isinf(q))
             if self.latent is None:
                 return max_states
             else:
