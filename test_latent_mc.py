@@ -372,7 +372,7 @@ def plot_results(name):
 
 
 if __name__ == '__main__':
-    from test_latent_mc import method_ridge_regression, method_krr
+    from test_latent_mc import *
     import logging
     logging.captureWarnings(True)
     logging.basicConfig(format=('%(asctime)s - %(name)s - %(levelname)s - ' +
