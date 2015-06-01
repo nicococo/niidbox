@@ -372,6 +372,11 @@ def plot_results(name):
 
 
 if __name__ == '__main__':
+    import logging
+    logging.captureWarnings(True)
+    logging.basicConfig(format=('%(asctime)s - %(name)s - %(levelname)s - ' +
+                                '%(message)s'), level=logging.INFO)
+
     parser = argparse.ArgumentParser()
     parser.add_argument("-m", "--max_states", help="Max state for testing (default=3).", default="3", type=int)
     parser.add_argument("-f", "--train_frac", help="Fraction of training exms (default=0.75)", default=0.75, type=float)
