@@ -6,20 +6,20 @@ matplotlib.rcParams['ps.fonttype'] = 42
 import matplotlib.pyplot as plt
 
 import numpy as np
-import scipy.sparse as sparse
 
 from sklearn.svm import SVR
-from sklearn.metrics import median_absolute_error, mean_squared_error, r2_score, mean_absolute_error, adjusted_rand_score
+from sklearn.metrics import median_absolute_error, \
+    mean_squared_error, r2_score, mean_absolute_error, adjusted_rand_score
 from sklearn.datasets import load_svmlight_file
 import sklearn.cluster as cl
-
-from gridmap import Job, process_jobs
-import argparse, sys
 
 from latent_ridge_regression import LatentRidgeRegression
 from tcrf_regression import TransductiveCrfRegression
 from tcrfr_indep_model import TCrfRIndepModel
 from tcrfr_pair_model import TCrfRPairwisePotentialModel
+
+import argparse, sys
+from gridmap import Job, process_jobs
 
 
 def load_svmlight_data(fname):
@@ -49,7 +49,7 @@ def get_1d_toy_data(num_exms=300, plot_data=False):
 
     # ..and corresponding target value y
     # y = -20.*z + x*(6.*z+1.) + 0.01*np.random.randn(grid_x)
-    y = -20.*z + x*(1.*z+1.) + 0.1*np.random.randn(grid_x)
+    y = -20.*z + x*(1.*z+1.) + 0.25*np.random.randn(grid_x)
     # y = -20.*z + x*(6.*z+1.) + 0.3*np.random.randn(grid_x)
     # y = 4.*z + x*(6.*z+1.) + 0.01*np.random.randn(grid_x)
     # y = -8*z + x*(6.*z) + 0.001*np.random.randn(grid_x)
@@ -91,7 +91,7 @@ def evaluate(truth, preds, true_lats, lats):
     return np.array(errs), names
 
 
-def method_transductive_regression(vecX, vecy, train, test, states=2, params=[0.0001, 0.9, 0.1], plot=False):
+def method_transductive_regression(vecX, vecy, train, test, states=2, params=[0.0001, 0.7, 0.3], plot=False):
     # OLS solution
     # vecX in (samples x dims)
     # vecy in (samples)
@@ -279,7 +279,20 @@ def method_flexmix(vecX, vecy, train, test, states=2, params=[], plot=False):
     return 'FlexMix', np.array(y_pred_flx), np.reshape(lats_pred, newshape=lats_pred.size)
 
 
-def single_run(methods, vecX, vecy, vecz, train_frac, states, plot):
+def main_run(methods, vecX, vecy, vecz, train_frac, states, plot):
+    import numpy as np
+
+    from sklearn.svm import SVR
+    from sklearn.metrics import median_absolute_error, \
+        mean_squared_error, r2_score, mean_absolute_error, adjusted_rand_score
+    from sklearn.datasets import load_svmlight_file
+    import sklearn.cluster as cl
+
+    from latent_ridge_regression import LatentRidgeRegression
+    from tcrf_regression import TransductiveCrfRegression
+    from tcrfr_indep_model import TCrfRIndepModel
+    from tcrfr_pair_model import TCrfRPairwisePotentialModel
+
     # generate training samples
     samples = vecX.shape[0]
     inds = np.random.permutation(range(samples))
@@ -297,12 +310,26 @@ def single_run(methods, vecX, vecy, vecz, train_frac, states, plot):
 
     names = []
     res = []
-    for m in methods:
-        (name, pred, lats) = m(np.array(vecX, copy=True), np.array(vecy, copy=True),
-                               np.array(train, copy=True), np.array(test, copy=True), states=states, plot=plot)
+    if plot:
+        plt.figure(1)
+        plt.plot(vecX[test, 0], vecy[test], 'or', color=[0.3, 0.3, 0.3],  alpha=0.4, markersize=18.0)
+    fmts = ['8c', '1m', '2g', '*y', '4k', 'ob', '.r']
+    for m in range(len(methods)):
+        (name, pred, lats) = methods[m](np.array(vecX, copy=True), np.array(vecy, copy=True),
+                               np.array(train, copy=True), np.array(test, copy=True), states=states, plot=False)
         names.append(name)
         print name
         res.append(evaluate(vecy[test], pred, vecz[test], lats))
+        if plot:
+            plt.figure(1)
+            plt.plot(vecX[test, 0], pred, fmts[m], alpha=0.8, markersize=10.0)
+    if plot:
+        plt_names = ['Datapoints']
+        plt_names.extend(names)
+        plt.legend(plt_names, fontsize=18)
+        plt.xlabel('Inputs', fontsize=20)
+        plt.ylabel('Targets', fontsize=20)
+        plt.show()
 
     print('------------------------------------------')
     print 'Total data           :', len(train)+len(test)
@@ -349,7 +376,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("-m", "--max_states", help="Max state for testing (default=3).", default="3", type=int)
     parser.add_argument("-f", "--train_frac", help="Fraction of training exms (default=0.75)", default=0.75, type=float)
-    parser.add_argument("-d", "--datapoints", help="Amount of data points (default=300)", default=300, type=int)
+    parser.add_argument("-d", "--datapoints", help="Amount of data points (default=300)", default=1000, type=int)
     parser.add_argument("-r", "--reps", help="Number of repetitions (default 10)", default=10, type=int)
     parser.add_argument("-p", "--processes", help="Number of processes (default 4)", default=4, type=int)
     parser.add_argument("-l", "--local", help="Run local or distribute? (default 1)", default=1, type=int)
@@ -369,7 +396,7 @@ if __name__ == '__main__':
     # methods = [method_flexmix, method_tcrfr_indep]
     # methods = [method_tcrfr_indep, method_tcrfr]
     # methods = [method_ridge_regression, method_tcrfr_indep]
-    # single_run(methods, vecX, vecy, vecz, train_frac=0.75, states=3, plot=True)
+    # main_run(methods, vecX, vecy, vecz, train_frac=0.75, states=5, plot=True)
 
     jobs = []
     MEASURES = 6
@@ -382,7 +409,7 @@ if __name__ == '__main__':
         if s not in mse:
             mse[s] = np.zeros((REPS, MEASURES*len(methods)))
         for n in range(REPS):
-            job = Job(single_run, [methods, vecX, vecy, vecz, arguments.train_frac, states[s], False],
+            job = Job(main_run, [methods, vecX, vecy, vecz, arguments.train_frac, states[s], False],
                       mem_max='8G', mem_free='16G', name='TCRFR it({0}) state({1})'.format(n, states[s]))
             jobs.append(job)
             sn_map[cnt] = (s, n)
