@@ -283,8 +283,7 @@ def main_run(methods, vecX, vecy, vecz, train_frac, states, plot):
     import numpy as np
 
     from sklearn.svm import SVR
-    from sklearn.metrics import median_absolute_error, \
-        mean_squared_error, r2_score, mean_absolute_error, adjusted_rand_score
+    from sklearn.metrics import median_absolute_error, mean_squared_error, r2_score, mean_absolute_error, adjusted_rand_score
     from sklearn.datasets import load_svmlight_file
     import sklearn.cluster as cl
 
