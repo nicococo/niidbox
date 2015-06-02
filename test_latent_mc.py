@@ -29,7 +29,7 @@ def load_svmlight_data(fname):
     return np.array(X.todense()), y.reshape(X.shape[0])
 
 
-def get_1d_toy_data(num_exms=300, plot_data=False):
+def get_1d_toy_data(num_exms=300, plot=False):
     grid_x = num_exms
     # generate 2D grid
     gx = np.linspace(0, 1, grid_x)
@@ -42,30 +42,32 @@ def get_1d_toy_data(num_exms=300, plot_data=False):
 
     # inputs  x
     # x = 4.0*np.sign(z-0.4)*gx + 2.0*np.sign(z-0.4) + 0.5*np.random.randn(grid_x)
-    x = 4.0*np.sign(z-0.5)*gx + 0.6*(z+1.)*np.random.rand(grid_x)
+    x = 4.0*np.sign(z-0.5)*gx + 0.6*(z+1.)*np.random.randn(grid_x)
+    x = 1.2*np.sign(z-0.5)*gx + 0.4*np.random.randn(grid_x)
     # x = 4.0*np.sign(z-0.5)*gx + 1.0*np.sign(z-0.5) + 0.8*np.random.randn(grid_x)
     # x = 8.0*gx + 0.4*np.random.randn(grid_xn)
-    x = 1.0*gx*gx + 0.1*np.random.randn(grid_x)
+    # x = 1.0*gx*gx + 0.1*np.random.randn(grid_x)
 
     # ..and corresponding target value y
     # y = -20.*z + x*(6.*z+1.) + 0.01*np.random.randn(grid_x)
-    y = -20.*z + x*(1.*z+1.) + 0.25*np.random.randn(grid_x)
+    # y = -20.*z + x*(1.*z+1.) + 0.25*np.random.randn(grid_x)
     # y = -20.*z + x*(6.*z+1.) + 0.3*np.random.randn(grid_x)
     # y = 4.*z + x*(6.*z+1.) + 0.01*np.random.randn(grid_x)
     # y = -8*z + x*(6.*z) + 0.001*np.random.randn(grid_x)
-    # y = -6.*z + 2.*x*(z-0.25) + 0.05*np.random.randn(grid_x)
+    y = -1.*z + 1.*x*(z-0.25) + 0.05*np.random.randn(grid_x)
 
     vecX = x.reshape(grid_x, 1)
     vecy = y.reshape(grid_x)
     vecz = z.reshape(grid_x)
     print vecX.shape
     print vecy.shape
-    if plot_data:
+    if plot:
         plt.figure(1)
-        plt.plot(range(grid_x), vecy, 'or', alpha=0.5)
-        plt.plot(range(grid_x), vecX, '.g', alpha=0.4)
-        plt.plot(range(grid_x), 2.0*vecz-1.0, '-k', linewidth=2.0)
-        plt.legend(['Labels', 'Inputs', 'Latent State'])
+        plt.plot(range(grid_x), vecy/np.max(np.abs(vecy)), 'or', alpha=0.5)
+        plt.plot(range(grid_x), vecX/np.max(np.abs(vecX)), '.g', alpha=0.4)
+        plt.plot(range(grid_x), vecz/np.max(vecz), '-k', linewidth=2.0)
+        plt.legend(['Regression Targets', 'Inputs', 'Latent States'], loc=4)
+        plt.ylim([-1.05, +1.05])
         plt.show()
     return vecX, vecy, vecz
 
@@ -304,7 +306,7 @@ def main_run(methods, vecX, vecy, vecz, train_frac, states, plot):
     vecX /= np.max(np.abs(vecX[train, :]))
     # vecX *= 4.
     vecy /= np.max(np.abs(vecy[train]))
-    vecy *= 4.
+    vecy *= 10.
     vecX = np.hstack((vecX, np.ones((vecX.shape[0], 1))))
 
     names = []
@@ -382,7 +384,7 @@ if __name__ == '__main__':
     parser.add_argument("-m", "--max_states", help="Max state for testing (default=3).", default="3", type=int)
     parser.add_argument("-f", "--train_frac", help="Fraction of training exms (default=0.75)", default=0.75, type=float)
     parser.add_argument("-d", "--datapoints", help="Amount of data points (default=300)", default=1000, type=int)
-    parser.add_argument("-r", "--reps", help="Number of repetitions (default 10)", default=10, type=int)
+    parser.add_argument("-r", "--reps", help="Number of repetitions (default 10)", default=1, type=int)
     parser.add_argument("-p", "--processes", help="Number of processes (default 4)", default=4, type=int)
     parser.add_argument("-l", "--local", help="Run local or distribute? (default 1)", default=1, type=int)
     parser.add_argument("-s", "--set", help="Select active methods set. (default 'full')", default='full', type=str)
@@ -390,7 +392,7 @@ if __name__ == '__main__':
     print arguments
 
     # plot_results('res_toy_{0}.npz'.format(arguments.max_states))
-    (vecX, vecy, vecz) = get_1d_toy_data(num_exms=arguments.datapoints)
+    (vecX, vecy, vecz) = get_1d_toy_data(num_exms=arguments.datapoints, plot=True)
 
     # full stack of methods
     methods = [method_ridge_regression, method_tcrfr_indep]
