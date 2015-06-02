@@ -1,3 +1,10 @@
+import matplotlib
+matplotlib.use('QT4Agg')
+# change to type 1 fonts!
+matplotlib.rcParams['pdf.fonttype'] = 42
+matplotlib.rcParams['ps.fonttype'] = 42
+import matplotlib.pyplot as plt
+
 import numpy as np
 import cvxopt as co
 
@@ -11,10 +18,19 @@ from latent_svr import LatentSVR
 from latent_ridge_regression import LatentRidgeRegression, TransductiveLatentRidgeRegression
 from multiclass_regression_model import MulticlassRegressionModel, TransductiveMulticlassRegressionModel
 from latent_cluster_regression import LatentClusterRegression
+from latent_ridge_regression import LatentRidgeRegression
+from tcrf_regression import TransductiveCrfRegression
+from tcrfr_indep_model import TCrfRIndepModel
+#from tcrfr_pair_model import TCrfRPairwisePotentialModel
+
+#import argparse, sys
+#from gridmap import Job, process_jobs
 
 import rpy2.robjects as robjects
 import pandas.rpy.common as com
 import pandas as pd
+
+
 
 
 def method_ridge_regression(vecX, vecy, train, test, states=2, params=[0.0001]):
@@ -162,6 +178,44 @@ def method_flexmix(vecX, vecy, train, test, states=2, params=[200, 0.001]):
         y_pred_flx[i] = y_pred[i, lats_pred[i] - 1]
     return 'FlexMix', np.array(y_pred_flx), np.array(lats[test])
 
+def method_tcrfr_indep(vecX, vecy, train, test, A, states=2, params=[0.9, 0.00001, 0.4], plot=False):
+#    A = np.zeros((vecX.shape[0], vecX.shape[0]))
+#    # A = sparse.lil_matrix((vecX.shape[0], vecX.shape[0]))
+#    for i in range(vecX.shape[0]-4):
+#        A[i, i+1] = 1
+#        A[i+1, i] = 1
+#        A[i, i+2] = 1
+#        A[i+2, i] = 1
+#        A[i, i+3] = 1
+#        A[i+3, i] = 1
+#        A[i, i+4] = 1
+#        A[i+4, i] = 1
+
+    model = TCrfRIndepModel(data=vecX.T, labels=vecy[train], label_inds=train, unlabeled_inds=test, states=states, A=A)
+    tcrfr = TransductiveCrfRegression(reg_theta=params[0], reg_lambda=params[1], reg_gamma=params[2]*float(len(train)+len(test)))
+    tcrfr.fit(model, max_iter=40)
+    y_preds, lats = tcrfr.predict(model)
+
+
+    print lats
+
+    if plot:
+        plt.figure(1)
+        plt.subplot(1, 2, 1)
+        plt.plot(vecX[:, 0], vecy, '.g', alpha=0.1, markersize=10.0)
+        plt.plot(vecX[test, 0], vecy[test], 'or', alpha=0.6, markersize=10.0)
+        plt.plot(vecX[test, 0], y_preds, 'oc', alpha=0.6, markersize=6.0)
+        plt.plot(vecX[test, 0], lats, 'ob', alpha=0.6, markersize=6.0)
+
+        plt.subplot(1, 2, 2)
+        plt.plot(vecX[train, 0], vecy[train], 'or', alpha=0.6, markersize=10.0)
+        plt.plot(vecX[train, 0], model.latent[train], 'ob', alpha=0.6, markersize=6.0)
+        ytrain = model.get_labeled_predictions(tcrfr.u)
+        plt.plot(vecX[train, 0], ytrain, 'xg', alpha=0.8, markersize=10.0)
+
+        plt.show()
+    return 'TCRFR (Indep)', y_preds, lats
+
 
 def measure_regression_performance(truth, preds):
     """ Measure regression performance
@@ -187,6 +241,8 @@ def measure_regression_performance(truth, preds):
     errs.append(r2_score(truth, preds))
     names.append('R2 Score')
     return errs, names
+
+
 
 
 def single_run(methods, vecX, vecy, vecz=None, train_frac=0.05, states=2, plot=False):
