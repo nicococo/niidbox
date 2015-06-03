@@ -390,7 +390,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("-m", "--max_states", help="Max state for testing (default=3).", default=3, type=int)
     parser.add_argument("-f", "--train_frac", help="Fraction of training exms (default=0.75)", default=0.4, type=float)
-    parser.add_argument("-d", "--datapoints", help="Amount of data points (default=300)", default=20000, type=int)
+    parser.add_argument("-d", "--datapoints", help="Amount of data points (default=300)", default=1000, type=int)
     parser.add_argument("-r", "--reps", help="Number of repetitions (default 10)", default=2, type=int)
     parser.add_argument("-p", "--processes", help="Number of processes (default 4)", default=1, type=int)
     parser.add_argument("-l", "--local", help="Run local or distribute? (default 1)", default=1, type=int)
