@@ -133,64 +133,70 @@ def method_lrr(vecX, vecy, train, test, states=2, params=[0.5, 0.0001, 1.0]):
     return 'Latent Ridge Regression', np.array(y_pred_lrr)[:, 0], np.array(lats)
 
 
-def method_flexmix(vecX, vecy, train, test, states=2, params=[200, 0.001]):
+def method_flexmix(vecX, vecy, train, test, states=2, params=[200, 0.001], plot=False):
     # Use latent class regression FlexMix package from R
-    R = robjects.r
-    R.library("flexmix")
+    import rpy2.robjects as robjects
+    import pandas.rpy.common as com
+    import pandas as pd
+    r = robjects.r
+    r.library("flexmix")
 
-    feats = vecX.shape[1] - 1
-    trainData = np.hstack((vecX[train, 0:feats], vecy[train].reshape(-1, 1)))
-    testData = np.hstack((vecX[test, 0:feats], vecy[test].reshape(-1, 1)))
-    df_train = pd.DataFrame(trainData)
-    df_test = pd.DataFrame(testData)
-    colNames = []
+    feats = vecX.shape[1]-1
+    train_data = np.hstack((vecX[train, 0:feats], vecy[train].reshape(-1, 1)))
+    df_train = pd.DataFrame(train_data)
+    colnames = []
     for i in range(feats):
-        colNames.append(str(i))
-    colNames.append('y')
-    df_train.columns = colNames
-    df_test.columns = colNames
+        colnames.append(str(i))
+    colnames.append('y')
+    df_train.columns = colnames
     df_train_r = com.convert_to_r_dataframe(df_train)
-    df_test_r = com.convert_to_r_dataframe(df_test)
 
-    R('''
+    r('''
         parms = list(iter=''' + str(params[0]) + ''', tol=''' + str(params[1]) + ''',class="CEM")
         as(parms, "FLXcontrol")
     ''')
-    model = R.flexmix(robjects.Formula("y ~ ."), data=df_train_r, k=states)
+    model = r.flexmix(robjects.Formula("y ~ ."), data=df_train_r, k=states)
 
-    lats = np.zeros((vecy.shape[0], 1), dtype=int)
-    lats[train] = np.array(R.clusters(model)).reshape(-1, 1)
-    lats_pred = np.array(R.clusters(model, newdata=df_test_r)).reshape(-1, 1)
-    lats[test] = lats_pred
-    lats = np.concatenate(lats)
+#    test_data = np.hstack((vecX[test, 0:feats], 1000.*np.random.randn(len(test)).reshape(-1, 1)))
+    test_data = np.hstack((vecX[test, 0:feats], np.zeros(len(test)).reshape(-1, 1)))
+    df_test = pd.DataFrame(test_data)
+    colnames = []
+    for i in range(feats):
+        colnames.append(str(i))
+    colnames.append('y')
+    df_test.columns = colnames
+    df_test_r = com.convert_to_r_dataframe(df_test)
 
-    pr = R.predict(model, newdata=df_test_r, aggregate=False)
+    pr = r.predict(model, newdata=df_test_r, aggregate=False)
     df = com.convert_robj(pr)
     s = pd.Series(df)
     aux = s.values
     dim = aux.shape[0]
     y_pred = np.zeros((len(vecy[test]), dim))
 
+    lats = np.zeros((vecy.shape[0], 1), dtype=int)
+    lats[train] = np.array(r.clusters(model)).reshape(-1, 1)
+    lats_pred = np.array(r.clusters(model, newdata=df_test_r)).reshape(-1, 1)
+    lats[test] = lats_pred
+
     for i in range(dim):
         y_pred[:, i] = np.copy(aux[i]).reshape(1, -1)
     y_pred_flx = np.zeros(len(vecy[test]))
     for i in range(len(y_pred_flx)):
-        y_pred_flx[i] = y_pred[i, lats_pred[i] - 1]
-    return 'FlexMix', np.array(y_pred_flx), np.array(lats[test])
+        y_pred_flx[i] = y_pred[i, lats_pred[i]-1]
+
+    if plot:
+        plt.figure(1)
+        plt.subplot(1, 2, 1)
+        plt.plot(vecX[:, 0], vecy, '.g', alpha=0.1, markersize=10.0)
+        plt.plot(vecX[test, 0], vecy[test], 'or', alpha=0.6, markersize=10.0)
+        plt.plot(vecX[test, 0], y_pred_flx, 'oc', alpha=0.6, markersize=6.0)
+        plt.plot(vecX[test, 0], lats[test], 'ob', alpha=0.6, markersize=6.0)
+        plt.show()
+    return 'FlexMix', np.array(y_pred_flx), np.reshape(lats_pred, newshape=lats_pred.size), lats
+
 
 def method_tcrfr_indep(vecX, vecy, train, test, A, states=2, params=[0.9, 0.00001, 0.4], plot=False):
-#    A = np.zeros((vecX.shape[0], vecX.shape[0]))
-#    # A = sparse.lil_matrix((vecX.shape[0], vecX.shape[0]))
-#    for i in range(vecX.shape[0]-4):
-#        A[i, i+1] = 1
-#        A[i+1, i] = 1
-#        A[i, i+2] = 1
-#        A[i+2, i] = 1
-#        A[i, i+3] = 1
-#        A[i+3, i] = 1
-#        A[i, i+4] = 1
-#        A[i+4, i] = 1
-
     model = TCrfRIndepModel(data=vecX.T, labels=vecy[train], label_inds=train, unlabeled_inds=test, states=states, A=A)
     tcrfr = TransductiveCrfRegression(reg_theta=params[0], reg_lambda=params[1], reg_gamma=params[2]*float(len(train)+len(test)))
     tcrfr.fit(model, max_iter=40)
