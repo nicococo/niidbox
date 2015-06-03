@@ -164,7 +164,7 @@ def method_flexmix(vecX, vecy, train, test, states=2, params=[200, 0.001]):
     lats[test] = lats_pred
     lats = np.concatenate(lats)
 
-    pr = R.predict(model, newdata=df_test_r)
+    pr = R.predict(model, newdata=df_test_r, aggregate=False)
     df = com.convert_robj(pr)
     s = pd.Series(df)
     aux = s.values
@@ -214,34 +214,28 @@ def method_tcrfr_indep(vecX, vecy, train, test, A, states=2, params=[0.9, 0.0000
         plt.plot(vecX[train, 0], ytrain, 'xg', alpha=0.8, markersize=10.0)
 
         plt.show()
-    return 'TCRFR (Indep)', y_preds, lats
+    return 'TCRFR (Indep)', y_preds, lats, model.latent
 
 
-def measure_regression_performance(truth, preds):
+def evaluate(truth, preds, true_lats, lats):
     """ Measure regression performance
-    :param truth: true values
-    :param preds: predictions
     :return: list of error measures and corresponding names
     """
-    names = []
-    errs = []
-
+    names = list()
+    errs = list()
     errs.append(mean_absolute_error(truth, preds))
     names.append('Mean Absolute Error')
-
     errs.append(mean_squared_error(truth, preds))
     names.append('Mean Squared Error')
-
     errs.append(np.sqrt(mean_squared_error(truth, preds)))
     names.append('Root Mean Squared Error')
-
     errs.append(median_absolute_error(truth, preds))
     names.append('Median Absolute Error')
-
     errs.append(r2_score(truth, preds))
     names.append('R2 Score')
-    return errs, names
-
+    errs.append(adjusted_rand_score(true_lats, lats))
+    names.append('Adjusted Rand Score')
+    return np.array(errs), names
 
 
 
