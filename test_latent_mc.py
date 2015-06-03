@@ -64,13 +64,50 @@ def get_1d_toy_data(num_exms=300, plot=False):
     print vecX.shape
     print vecy.shape
     if plot:
+        means = np.ones(vecy.size)
+        means[vecz==0] = np.mean(vecX[vecz==0], axis=0)
+        means[vecz==1] = np.mean(vecX[vecz==1], axis=0)
+        means[vecz==2] = np.mean(vecX[vecz==2], axis=0)
+
+        samples = vecy.size
+        inds = np.random.permutation(range(samples))
+        train_frac = 0.2
+        train_nums = np.floor(samples*train_frac)
+        train = inds[:train_nums]
+
         plt.figure(1)
-        #plt.plot(range(grid_x), vecy/np.max(np.abs(vecy)), 'or', alpha=0.5)
-        plt.plot(range(grid_x), vecy, 'or', alpha=0.5)
-        plt.plot(range(grid_x), vecX, '.g', alpha=0.4)
-        plt.plot(range(grid_x), vecz/np.max(vecz), '-k', linewidth=2.0)
-        plt.legend(['Regression Targets', 'Inputs', 'Latent States'], loc=4)
-        plt.ylim([-2.05, +4.05])
+        plt.subplot(1, 2, 1)
+
+        plt.plot(range(grid_x), vecX, '-ok', alpha=0.4)
+        plt.plot(np.array(range(grid_x))[train], vecX[train, :], 'or', alpha=0.8)
+        plt.plot(range(grid_x), means, '-k', linewidth=2.0)
+        pos1 = np.where(vecz[1:]-vecz[:-1] > 0)[0]
+        print pos1
+        plt.fill_between(range(pos1[0], pos1[1]+2), 2.4*np.max(vecX), 2.2*np.min(vecX), alpha=0.2)
+        plt.text(10., -2.5, 'State 1', fontsize=14)
+        plt.text(45., -2.5, 'State 2', fontsize=14)
+        plt.text(80., -2.5, 'State 3', fontsize=14)
+        plt.legend(['Observations w/ Neighborhood Connection', 'Observations w/ Assigned Regression Target',
+                    'Latent State Mean Input Values'], loc=2, fontsize=14, fancybox=True, framealpha=0.7)
+        plt.ylim([-3.05, +4.55])
+        plt.xlabel('Time', fontsize=18)
+        plt.ylabel('Observations', fontsize=18)
+
+        plt.subplot(1, 2, 2)
+        for s in range(samples-1):
+            if np.linalg.norm([vecy[s]-vecy[s+1]]) > 1.2:
+                plt.plot([vecX[s, :], vecX[s+1,:]], [vecy[s], vecy[s+1]], '-k', alpha=0.1)
+            else:
+                plt.plot([vecX[s, :], vecX[s+1,:]], [vecy[s], vecy[s+1]], '-k', alpha=0.3)
+
+        plt.plot(vecX, vecy, 'ok', alpha=0.4)
+        plt.plot(vecX[train, :], vecy[train], 'or', alpha=0.8)
+        # plt.ylim([-2.05, +4.05])
+        plt.xlabel('Observations', fontsize=18)
+        plt.ylabel('Regression Targets', fontsize=18)
+        # plt.legend(['Input Data w/ Neighborhood Connection', 'Input Data w/ Assigned Regression Target', 'Latent State Mean Input Values'], loc=2, fontsize=14)
+        # plt.legend(['Neighborhood Connection', 'Unlabeled Input Data', 'Labeled Data'], loc=2, fontsize=14)
+
         plt.show()
     return vecX, vecy, vecz
 
@@ -170,7 +207,10 @@ def method_ridge_regression(vecX, vecy, train, test, states=2, params=[0.0001], 
 
 def method_svr(vecX, vecy, train, test, states=2, params=[1.0, 0.1, 'linear'], plot=False):
     # train ordinary support vector regression
-    clf = SVR(C=params[0], epsilon=params[1], kernel=params[2], shrinking=False)
+    if len(params) == 3:
+        clf = SVR(C=params[0], epsilon=params[1], kernel=params[2], shrinking=False)
+    else:
+        clf = SVR(C=params[0], epsilon=params[1], kernel='linear', shrinking=False)
     clf.fit(vecX[train, :], vecy[train])
     return 'Support Vector Regression', clf.predict(vecX[test, :]), np.ones(len(test))
 
@@ -191,7 +231,7 @@ def method_krr(vecX, vecy, train, test, states=2, params=[0.0001], plot=False):
     return 'K-means + Ridge Regression', np.sum(sol[lbls, :] * vecX[test, :], axis=1), lbls
 
 
-def method_tcrfr_indep(vecX, vecy, train, test, states=2, params=[0.9, 0.00001, 0.4], plot=False):
+def method_tcrfr_indep(vecX, vecy, train, test, states=2, params=[0.9, 0.00001, 0.4, 100.], plot=False):
     # A = np.zeros((vecX.shape[0], vecX.shape[0]))
     A = sparse.lil_matrix((vecX.shape[0], vecX.shape[0]))
     for i in range(vecX.shape[0]-4):
@@ -204,7 +244,8 @@ def method_tcrfr_indep(vecX, vecy, train, test, states=2, params=[0.9, 0.00001, 
         A[i, i+4] = 1
         A[i+4, i] = 1
 
-    model = TCrfRIndepModel(data=vecX.T, labels=vecy[train], label_inds=train, unlabeled_inds=test, states=states, A=A)
+    model = TCrfRIndepModel(data=vecX.T, labels=vecy[train], label_inds=train,
+                            unlabeled_inds=test, states=states, A=A, lbl_neighbor_gain=params[3])
     tcrfr = TransductiveCrfRegression(reg_theta=params[0], reg_lambda=params[1], reg_gamma=params[2]*float(len(train)+len(test)))
     tcrfr.fit(model, max_iter=40)
     y_preds, lats = tcrfr.predict(model)
@@ -288,7 +329,7 @@ def method_flexmix(vecX, vecy, train, test, states=2, params=[200, 0.001], plot=
     return 'FlexMix', np.array(y_pred_flx), np.reshape(lats_pred, newshape=lats_pred.size)
 
 
-def main_run(methods, vecX, vecy, vecz, train_frac, states, plot):
+def main_run(methods, params, vecX, vecy, vecz, train_frac, val_frac, states, plot):
     import numpy as np
 
     from sklearn.svm import SVR
@@ -304,8 +345,10 @@ def main_run(methods, vecX, vecy, vecz, train_frac, states, plot):
     # generate training samples
     samples = vecX.shape[0]
     inds = np.random.permutation(range(samples))
-    train = inds[:np.floor(samples*train_frac)]
-    test = inds[np.floor(samples*train_frac):]
+    train_nums = np.floor(samples*train_frac)
+    val_nums = np.floor(samples*val_frac)
+    train = inds[:train_nums]
+    test = inds[train_nums:]
 
     # normalize data
     vecy = vecy-np.mean(vecy[train])
@@ -323,14 +366,29 @@ def main_run(methods, vecX, vecy, vecz, train_frac, states, plot):
         plt.plot(vecX[test, 0], vecy[test], 'or', color=[0.3, 0.3, 0.3],  alpha=0.4, markersize=18.0)
     fmts = ['8c', '1m', '2g', '*y', '4k', 'ob', '.r']
     for m in range(len(methods)):
-        (name, pred, lats) = methods[m](np.array(vecX, copy=True), np.array(vecy, copy=True),
-                               np.array(train, copy=True), np.array(test, copy=True), states=states, plot=False)
+        val_error = 1e14
+        pred = None
+        lats = None
+        best_param = None
+        for p in params[m]:
+            print('Testing parameters {0} for method {1}'.format(p, methods[m]))
+            (name, _pred, _lats) = methods[m](np.array(vecX, copy=True), np.array(vecy, copy=True),
+                                            np.array(train, copy=True), np.array(test, copy=True),
+                                            states=states, params=p, plot=False)
+            eval_val, _ = evaluate(vecy[test[:val_nums]], _pred[:val_nums], vecz[test[:val_nums]], _lats[:val_nums])
+            if eval_val[1] < val_error:
+                pred = _pred
+                lats = _lats
+                best_param = p
+
         names.append(name)
         print name
-        res.append(evaluate(vecy[test], pred, vecz[test], lats))
+        print 'Best param = ', best_param
+        res.append(evaluate(vecy[test[val_nums:]], pred[val_nums:], vecz[test[val_nums:]], lats[val_nums:]))
+        # res.append(evaluate(vecy[test], pred, vecz[test], lats))
         if plot:
             plt.figure(1)
-            plt.plot(vecX[test, 0], pred, fmts[m], alpha=0.8, markersize=10.0)
+            plt.plot(vecX[test[val_nums:], 0], pred[val_nums:], fmts[m], alpha=0.8, markersize=10.0)
     if plot:
         plt_names = ['Datapoints']
         plt_names.extend(names)
@@ -388,22 +446,51 @@ if __name__ == '__main__':
                                 '%(message)s'), level=logging.INFO)
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("-m", "--max_states", help="Max state for testing (default=3).", default=3, type=int)
+    parser.add_argument("-m", "--max_states", help="Max state for testing (default=3).", default=1, type=int)
     parser.add_argument("-f", "--train_frac", help="Fraction of training exms (default=0.75)", default=0.4, type=float)
-    parser.add_argument("-d", "--datapoints", help="Amount of data points (default=300)", default=1000, type=int)
-    parser.add_argument("-r", "--reps", help="Number of repetitions (default 10)", default=2, type=int)
-    parser.add_argument("-p", "--processes", help="Number of processes (default 4)", default=1, type=int)
+    parser.add_argument("-d", "--datapoints", help="Amount of data points (default=1000)", default=300, type=int)
+    parser.add_argument("-r", "--reps", help="Number of repetitions (default 10)", default=1, type=int)
+    parser.add_argument("-p", "--processes", help="Number of processes (default 4)", default=4, type=int)
     parser.add_argument("-l", "--local", help="Run local or distribute? (default 1)", default=1, type=int)
-    parser.add_argument("-s", "--set", help="Select active methods set. (default 'full')", default='foo', type=str)
+    parser.add_argument("-s", "--set", help="Select active methods set. (default 'full')", default='full', type=str)
     arguments = parser.parse_args(sys.argv[1:])
     print arguments
 
     # plot_results('res_toy_[1, 2, 3, 4, 5, 6].npz')
+
+    # this is for generating a nice looking motivational example
+    # (vecX, vecy, vecz) = get_1d_toy_data(num_exms=100, plot=True)
     (vecX, vecy, vecz) = get_1d_toy_data(num_exms=arguments.datapoints, plot=False)
+
+    # generate parameter sets
+    param_flx = [[1000, 0.001], [1000, 0.0001]]
+    param_rr = [[0.1], [0.01], [0.001], [0.0001], [0.00001], [0.000001]]
+    param_svr = [[0.1, 0.01], [0.1, 0.1], [1.0, .01], [1.0, 0.1], [10., .01], [10., .1], [100., .1], [100., .01]]
+    param_krr = param_rr
+    param_tr = list()
+    for i in range(len(param_rr)):
+        for j in range(len(param_rr)):
+            for k in range(len(param_rr)):
+                param_tr.append([param_rr[i][0], 100.*param_rr[j][0], 100.*param_rr[k][0]])
+    param_tcrfr_indep = list()
+    param_tcrfr = list()
+    tcrfr_theta = [0.9]
+    tcrfr_lambda = [0.000001]
+    tcrfr_gamma = [0.5, 1.]
+    tcrfr_neighb = [10., 100.]
+    for i in range(len(tcrfr_theta)):
+        for j in range(len(tcrfr_lambda)):
+            for k in range(len(tcrfr_gamma)):
+                param_tcrfr.append([tcrfr_theta[i], tcrfr_lambda[j], tcrfr_gamma[k]])
+                for l in range(len(tcrfr_neighb)):
+                    param_tcrfr_indep.append([tcrfr_theta[i], tcrfr_lambda[j], tcrfr_gamma[k], tcrfr_neighb[l]])
 
     # full stack of methods
     methods = [method_ridge_regression, method_tcrfr_indep]
+    methods = [method_tcrfr]
+    params = [param_tcrfr]
     if arguments.set == 'full':
+        params = [param_rr, param_svr, param_krr, param_tr, param_flx, param_tcrfr_indep, param_tcrfr]
         methods = [method_ridge_regression, method_svr, method_krr,
                    method_transductive_regression, method_flexmix,
                    method_tcrfr_indep, method_tcrfr]
@@ -423,7 +510,7 @@ if __name__ == '__main__':
         if s not in mse:
             mse[s] = np.zeros((REPS, MEASURES*len(methods)))
         for n in range(REPS):
-            job = Job(main_run, [methods, vecX, vecy, vecz, arguments.train_frac, states[s], False],
+            job = Job(main_run, [methods, params, vecX, vecy, vecz, arguments.train_frac, 0.1, states[s], False],
                       mem_max='8G', mem_free='16G', name='TCRFR it({0}) state({1})'.format(n, states[s]))
             jobs.append(job)
             sn_map[cnt] = (s, n)

@@ -21,9 +21,12 @@ class TCrfRIndepModel(TransductiveStructuredModel):
     phis = None  # copy of the current joint feature map, corresponding to self.latent
     sol_dot_psi = None
 
-    def __init__(self, data, labels, label_inds, unlabeled_inds, states, A):
+    lbl_neighbor_gain = 1.
+
+    def __init__(self, data, labels, label_inds, unlabeled_inds, states, A, lbl_neighbor_gain=100.):
         TransductiveStructuredModel.__init__(self, data, labels, label_inds, unlabeled_inds)
         self.states = states
+        self.lbl_neighbor_gain = lbl_neighbor_gain
         # A should be a sparse lil_matrix
         # 1. find the max length
         max_len = 0
@@ -145,7 +148,7 @@ class TCrfRIndepModel(TransductiveStructuredModel):
             #     print '=========================='
             #     print n_cnts == cnts
             #     print '++++++++++++++++++++++++++'
-            map_objs[s, self.unlabeled_inds] += 100.*n_cnts
+            map_objs[s, self.unlabeled_inds] += self.lbl_neighbor_gain*n_cnts
 
         # highest value first
         if self.latent is not None:
