@@ -227,7 +227,7 @@ def method_tcrfr_indep(vecX, vecy, train, test, states=2, params=[0.9, 0.00001, 
     return 'TCRFR (Indep)', y_preds, lats
 
 
-def method_flexmix(vecX, vecy, train, test, states=2, params=[], plot=False):
+def method_flexmix(vecX, vecy, train, test, states=2, params=[200, 0.001], plot=False):
     # Use latent class regression FlexMix package from R
     import rpy2.robjects as robjects
     import pandas.rpy.common as com
@@ -245,6 +245,10 @@ def method_flexmix(vecX, vecy, train, test, states=2, params=[], plot=False):
     df_train.columns = colnames
     df_train_r = com.convert_to_r_dataframe(df_train)
 
+    r('''
+        parms = list(iter=''' + str(params[0]) + ''', tol=''' + str(params[1]) + ''',class="CEM")
+        as(parms, "FLXcontrol")
+    ''')
     model = r.flexmix(robjects.Formula("y ~ ."), data=df_train_r, k=states)
 
     test_data = np.hstack((vecX[test, 0:feats], 1000.*np.random.randn(len(test)).reshape(-1, 1)))
@@ -383,7 +387,7 @@ if __name__ == '__main__':
                                 '%(message)s'), level=logging.INFO)
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("-m", "--max_states", help="Max state for testing (default=3).", default=5, type=int)
+    parser.add_argument("-m", "--max_states", help="Max state for testing (default=3).", default=3, type=int)
     parser.add_argument("-f", "--train_frac", help="Fraction of training exms (default=0.75)", default=0.75, type=float)
     parser.add_argument("-d", "--datapoints", help="Amount of data points (default=300)", default=1000, type=int)
     parser.add_argument("-r", "--reps", help="Number of repetitions (default 10)", default=2, type=int)
