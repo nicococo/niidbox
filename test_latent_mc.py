@@ -35,26 +35,27 @@ def get_1d_toy_data(num_exms=300, plot=False):
     gx = np.linspace(0, 1, grid_x)
     # latent variable z
     z = np.zeros(grid_x, dtype=np.uint8)
-    zx = np.where((gx > 0.3) & (gx < 0.6))[0]
+    zx = np.where((gx > 0.3) & (gx < 0.75))[0]
     z[zx] = 2
-    zx = np.where(gx > 0.6)[0]
+    zx = np.where(gx >= 0.75)[0]
     z[zx] = 1
 
     # inputs  x
     # x = 4.0*np.sign(z-0.4)*gx + 2.0*np.sign(z-0.4) + 0.5*np.random.randn(grid_x)
-    x = 4.0*np.sign(z-0.5)*gx + 0.6*(z+1.)*np.random.randn(grid_x)
-    x = 1.2*np.sign(z-0.5)*gx + 0.4*np.random.randn(grid_x)
+    # x = 4.0*np.sign(z-0.5)*gx + 0.6*(z+1.)*np.random.randn(grid_x)
+    # x = 1.2*np.sign(z-0.5)*gx + 0.4*np.random.randn(grid_x)
+    x = 1.8*(z-0.5)*gx+1.0*np.random.randn(grid_x)
     # x = 4.0*np.sign(z-0.5)*gx + 1.0*np.sign(z-0.5) + 0.8*np.random.randn(grid_x)
     # x = 8.0*gx + 0.4*np.random.randn(grid_xn)
     # x = 1.0*gx*gx + 0.1*np.random.randn(grid_x)
 
     # ..and corresponding target value y
     # y = -20.*z + x*(6.*z+1.) + 0.01*np.random.randn(grid_x)
-    # y = -20.*z + x*(1.*z+1.) + 0.25*np.random.randn(grid_x)
+    y = -20.*z + x*(1.*z+1.) + 0.25*np.random.randn(grid_x)
     # y = -20.*z + x*(6.*z+1.) + 0.3*np.random.randn(grid_x)
     # y = 4.*z + x*(6.*z+1.) + 0.01*np.random.randn(grid_x)
     # y = -8*z + x*(6.*z) + 0.001*np.random.randn(grid_x)
-    y = -1.*z + 1.*x*(z-0.25) + 0.05*np.random.randn(grid_x)
+    y = 0.6*z + 1.2*gx*(z-1.) + 0.05*np.random.randn(grid_x)
 
     vecX = x.reshape(grid_x, 1)
     vecy = y.reshape(grid_x)
@@ -63,11 +64,12 @@ def get_1d_toy_data(num_exms=300, plot=False):
     print vecy.shape
     if plot:
         plt.figure(1)
-        plt.plot(range(grid_x), vecy/np.max(np.abs(vecy)), 'or', alpha=0.5)
-        plt.plot(range(grid_x), vecX/np.max(np.abs(vecX)), '.g', alpha=0.4)
+        #plt.plot(range(grid_x), vecy/np.max(np.abs(vecy)), 'or', alpha=0.5)
+        plt.plot(range(grid_x), vecy, 'or', alpha=0.5)
+        plt.plot(range(grid_x), vecX, '.g', alpha=0.4)
         plt.plot(range(grid_x), vecz/np.max(vecz), '-k', linewidth=2.0)
         plt.legend(['Regression Targets', 'Inputs', 'Latent States'], loc=4)
-        plt.ylim([-1.05, +1.05])
+        plt.ylim([-2.05, +4.05])
         plt.show()
     return vecX, vecy, vecz
 
@@ -245,7 +247,7 @@ def method_flexmix(vecX, vecy, train, test, states=2, params=[], plot=False):
 
     model = r.flexmix(robjects.Formula("y ~ ."), data=df_train_r, k=states)
 
-    test_data = np.hstack((vecX[test, 0:feats], np.zeros(len(test)).reshape(-1, 1)))
+    test_data = np.hstack((vecX[test, 0:feats], 1000.*np.random.randn(len(test)).reshape(-1, 1)))
     df_test = pd.DataFrame(test_data)
     colnames = []
     for i in range(feats):
@@ -254,7 +256,7 @@ def method_flexmix(vecX, vecy, train, test, states=2, params=[], plot=False):
     df_test.columns = colnames
     df_test_r = com.convert_to_r_dataframe(df_test)
 
-    pr = r.predict(model, newdata=df_test_r)
+    pr = r.predict(model, newdata=df_test_r, aggregate=False)
     df = com.convert_robj(pr)
     s = pd.Series(df)
     aux = s.values
@@ -381,21 +383,21 @@ if __name__ == '__main__':
                                 '%(message)s'), level=logging.INFO)
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("-m", "--max_states", help="Max state for testing (default=3).", default="3", type=int)
+    parser.add_argument("-m", "--max_states", help="Max state for testing (default=3).", default=5, type=int)
     parser.add_argument("-f", "--train_frac", help="Fraction of training exms (default=0.75)", default=0.75, type=float)
     parser.add_argument("-d", "--datapoints", help="Amount of data points (default=300)", default=1000, type=int)
-    parser.add_argument("-r", "--reps", help="Number of repetitions (default 10)", default=1, type=int)
+    parser.add_argument("-r", "--reps", help="Number of repetitions (default 10)", default=2, type=int)
     parser.add_argument("-p", "--processes", help="Number of processes (default 4)", default=4, type=int)
     parser.add_argument("-l", "--local", help="Run local or distribute? (default 1)", default=1, type=int)
-    parser.add_argument("-s", "--set", help="Select active methods set. (default 'full')", default='full', type=str)
+    parser.add_argument("-s", "--set", help="Select active methods set. (default 'full')", default='foo', type=str)
     arguments = parser.parse_args(sys.argv[1:])
     print arguments
 
-    # plot_results('res_toy_{0}.npz'.format(arguments.max_states))
-    (vecX, vecy, vecz) = get_1d_toy_data(num_exms=arguments.datapoints, plot=True)
+    # plot_results('res_toy_[1, 2, 3, 4, 5, 6].npz')
+    (vecX, vecy, vecz) = get_1d_toy_data(num_exms=arguments.datapoints, plot=False)
 
     # full stack of methods
-    methods = [method_ridge_regression, method_tcrfr_indep]
+    methods = [method_ridge_regression, method_tcrfr_indep, method_flexmix]
     if arguments.set == 'full':
         methods = [method_ridge_regression, method_svr, method_krr,
                    method_transductive_regression, method_flexmix,
@@ -403,7 +405,7 @@ if __name__ == '__main__':
     # methods = [method_flexmix, method_tcrfr_indep]
     # methods = [method_tcrfr_indep, method_tcrfr]
     # methods = [method_ridge_regression, method_tcrfr_indep]
-    # main_run(methods, vecX, vecy, vecz, train_frac=0.75, states=5, plot=True)
+    # main_run(methods, vecX, vecy, vecz, train_frac=0.4, states=3, plot=True)
 
     jobs = []
     MEASURES = 6
