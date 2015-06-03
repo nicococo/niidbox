@@ -140,7 +140,7 @@ def method_flexmix(vecX, vecy, train, test, states=2, params=[200, 0.001]):
 
     feats = vecX.shape[1] - 1
     trainData = np.hstack((vecX[train, 0:feats], vecy[train].reshape(-1, 1)))
-    testData = np.hstack((vecX[test, 0:feats], vecy[test].reshape(-1, 1)))
+    test_data = np.hstack((vecX[test, 0:feats], 1.*np.random.randn(len(test)).reshape(-1, 1)))
     df_train = pd.DataFrame(trainData)
     df_test = pd.DataFrame(testData)
     colNames = []

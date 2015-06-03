@@ -1,6 +1,7 @@
 __author__ = 'nicococo'
 
 import numpy as np
+import scipy.sparse as sparse
 
 from structured_object import TransductiveStructuredModel
 
@@ -12,7 +13,7 @@ class TCrfRIndepModel(TransductiveStructuredModel):
     """
     states = -1  # (scalar) number of hidden states
 
-    A = None  # Adjacency matrix
+    N = None  # Labeled neighbors for each unlabeled datapoint based on sparse Adjacency matrix
 
     psi = None  # copy of the current joint feature map, corresponding to self.latent
     phis = None  # copy of the current joint feature map, corresponding to self.latent
@@ -20,8 +21,11 @@ class TCrfRIndepModel(TransductiveStructuredModel):
 
     def __init__(self, data, labels, label_inds, unlabeled_inds, states, A):
         TransductiveStructuredModel.__init__(self, data, labels, label_inds, unlabeled_inds)
-        self.A = A
         self.states = states
+
+        # A should be a sparse lil_matrix
+        self.N = np.array(A.rows[self.unlabeled_inds])
+
 
     def get_num_dims(self):
         return self.get_num_feats()*self.states
@@ -101,10 +105,11 @@ class TCrfRIndepModel(TransductiveStructuredModel):
 
         # number of labeled neighbors that are in this state
         y = self.latent[self.label_inds]
-        B = self.A[self.unlabeled_inds, :]
+        B = self.N
         for s in range(self.states):
             inds = np.where(s == y)[0]
-            cnts = np.sum(B[:, self.label_inds[inds]], axis=1)
+            #cnts = np.sum(B[:, self.label_inds[inds]], axis=1)
+            cnts = np.sum(self.label_inds[inds] is in B, axis=1)
             map_objs[s, self.unlabeled_inds] += 100.*cnts
 
         # highest value first
