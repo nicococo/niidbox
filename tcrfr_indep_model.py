@@ -14,6 +14,8 @@ class TCrfRIndepModel(TransductiveStructuredModel):
     states = -1  # (scalar) number of hidden states
 
     N = None  # Labeled neighbors for each unlabeled datapoint based on sparse Adjacency matrix
+    N_weights = None
+    A = None
 
     psi = None  # copy of the current joint feature map, corresponding to self.latent
     phis = None  # copy of the current joint feature map, corresponding to self.latent
@@ -22,10 +24,32 @@ class TCrfRIndepModel(TransductiveStructuredModel):
     def __init__(self, data, labels, label_inds, unlabeled_inds, states, A):
         TransductiveStructuredModel.__init__(self, data, labels, label_inds, unlabeled_inds)
         self.states = states
-
         # A should be a sparse lil_matrix
-        self.N = np.array(A.rows[self.unlabeled_inds])
-
+        # 1. find the max length
+        max_len = 0
+        for ind in self.unlabeled_inds:
+            foo = np.intersect1d(self.label_inds, A.rows[ind])
+            max_len = np.max([len(foo), max_len])
+        print max_len
+        # 2. fill the data with max length:
+        self.N = np.zeros((len(self.unlabeled_inds), max_len), dtype='i')
+        self.N_weights = np.ones((len(self.unlabeled_inds), max_len), dtype='d')
+        idx = 0
+        for ind in self.unlabeled_inds:
+            foo = np.intersect1d(self.label_inds, A.rows[ind])
+            lens = len(foo)
+            self.N[idx, :lens] = foo
+            if lens < max_len:
+                if lens > 0:
+                    self.N[idx, lens:] = foo[0]
+                    weight = 1./float(max_len - lens + 1)
+                    self.N_weights[idx, 0] = weight
+                    self.N_weights[idx, lens:] = weight
+                else:
+                    self.N[idx, :] = 0
+                    self.N_weights[idx, :] = 0.0
+            idx += 1
+        # self.A = np.array(A.todense())
 
     def get_num_dims(self):
         return self.get_num_feats()*self.states
@@ -104,13 +128,24 @@ class TCrfRIndepModel(TransductiveStructuredModel):
         self.latent = np.argmax(map_objs, axis=0)
 
         # number of labeled neighbors that are in this state
-        y = self.latent[self.label_inds]
-        B = self.N
+        # y = self.latent[self.label_inds]
+        # B = self.A[self.unlabeled_inds, :]
+        yn = self.latent[self.N]
         for s in range(self.states):
-            inds = np.where(s == y)[0]
-            #cnts = np.sum(B[:, self.label_inds[inds]], axis=1)
-            cnts = np.sum(self.label_inds[inds] is in B, axis=1)
-            map_objs[s, self.unlabeled_inds] += 100.*cnts
+            # inds = np.where(s == y)[0]
+            # cnts = np.sum(B[:, self.label_inds[inds]], axis=1)
+            n_cnts = np.sum(np.array((yn == s), dtype='d')*self.N_weights, axis=1)
+            # if any(np.abs(n_cnts-cnts) > 0.1):
+            #     print n_cnts[n_cnts != cnts]
+            #     print cnts[n_cnts != cnts]
+            #     print '**************************'
+            #     print n_cnts
+            #     print '--------------------------'
+            #     print cnts
+            #     print '=========================='
+            #     print n_cnts == cnts
+            #     print '++++++++++++++++++++++++++'
+            map_objs[s, self.unlabeled_inds] += 100.*n_cnts
 
         # highest value first
         if self.latent is not None:
