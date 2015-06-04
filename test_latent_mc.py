@@ -487,8 +487,8 @@ if __name__ == '__main__':
 
     # full stack of methods
     methods = [method_ridge_regression, method_tcrfr_indep]
-    methods = [method_tcrfr]
-    params = [param_tcrfr]
+    methods = [method_tcrfr_indep]
+    params = [param_tcrfr_indep]
     if arguments.set == 'full':
         params = [param_rr, param_svr, param_krr, param_tr, param_flx, param_tcrfr_indep, param_tcrfr]
         methods = [method_ridge_regression, method_svr, method_krr,
