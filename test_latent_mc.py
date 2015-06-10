@@ -1,5 +1,5 @@
 import matplotlib
-matplotlib.use('QT4Agg')
+# matplotlib.use('QT4Agg')
 # change to type 1 fonts!
 matplotlib.rcParams['pdf.fonttype'] = 42
 matplotlib.rcParams['ps.fonttype'] = 42
@@ -354,9 +354,14 @@ def main_run(methods, params, vecX, vecy, vecz, train_frac, val_frac, states, pl
     vecy = vecy-np.mean(vecy[train])
     vecX = vecX-np.mean(vecX[train, :])
     vecX /= np.max(np.abs(vecX[train, :]))
+    # vecX += 1.0
+    # vecX /= 2.0
     # vecX *= 4.
     vecy /= np.max(np.abs(vecy[train]))
     vecy *= 10.
+    # vecy += 1.0
+    # vecy /= 2.0
+
     vecX = np.hstack((vecX, np.ones((vecX.shape[0], 1))))
 
     names = []
@@ -446,13 +451,13 @@ if __name__ == '__main__':
                                 '%(message)s'), level=logging.INFO)
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("-m", "--max_states", help="Max state for testing (default=3).", default=1, type=int)
+    parser.add_argument("-m", "--max_states", help="Max state for testing (default=3).", default=3, type=int)
     parser.add_argument("-f", "--train_frac", help="Fraction of training exms (default=0.75)", default=0.4, type=float)
     parser.add_argument("-d", "--datapoints", help="Amount of data points (default=1000)", default=300, type=int)
     parser.add_argument("-r", "--reps", help="Number of repetitions (default 10)", default=1, type=int)
     parser.add_argument("-p", "--processes", help="Number of processes (default 4)", default=4, type=int)
     parser.add_argument("-l", "--local", help="Run local or distribute? (default 1)", default=1, type=int)
-    parser.add_argument("-s", "--set", help="Select active methods set. (default 'full')", default='full', type=str)
+    parser.add_argument("-s", "--set", help="Select active methods set. (default 'full')", default='Foo', type=str)
     arguments = parser.parse_args(sys.argv[1:])
     print arguments
 
@@ -487,8 +492,8 @@ if __name__ == '__main__':
 
     # full stack of methods
     methods = [method_ridge_regression, method_tcrfr_indep]
-    methods = [method_tcrfr_indep]
-    params = [param_tcrfr_indep]
+    methods = [method_tcrfr_indep, method_flexmix, method_ridge_regression]
+    params = [param_tcrfr_indep, param_flx, param_rr]
     if arguments.set == 'full':
         params = [param_rr, param_svr, param_krr, param_tr, param_flx, param_tcrfr_indep, param_tcrfr]
         methods = [method_ridge_regression, method_svr, method_krr,
