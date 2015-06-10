@@ -1,36 +1,33 @@
 import matplotlib
-matplotlib.use('QT4Agg')
+# matplotlib.use('QT4Agg')
 # change to type 1 fonts!
 matplotlib.rcParams['pdf.fonttype'] = 42
 matplotlib.rcParams['ps.fonttype'] = 42
 import matplotlib.pyplot as plt
 
 import numpy as np
-import cvxopt as co
-
 from sklearn.svm import SVR
 from sklearn.metrics import median_absolute_error, mean_squared_error, r2_score, mean_absolute_error, \
     adjusted_rand_score
-from sklearn.datasets import load_svmlight_file
 import sklearn.cluster as cl
 
-from latent_svr import LatentSVR
-from latent_ridge_regression import LatentRidgeRegression, TransductiveLatentRidgeRegression
-from multiclass_regression_model import MulticlassRegressionModel, TransductiveMulticlassRegressionModel
-from latent_cluster_regression import LatentClusterRegression
-from latent_ridge_regression import LatentRidgeRegression
+from cvxopt import matrix
+
 from tcrf_regression import TransductiveCrfRegression
 from tcrfr_indep_model import TCrfRIndepModel
-#from tcrfr_pair_model import TCrfRPairwisePotentialModel
-
-#import argparse, sys
-#from gridmap import Job, process_jobs
-
-import rpy2.robjects as robjects
-import pandas.rpy.common as com
-import pandas as pd
 
 
+def train_model(self, vecX, vecy):
+    # solve the ridge regression problem
+    E = np.zeros((vecX.shape[1], vecX.shape[1]))
+    np.fill_diagonal(E, self.lam)
+    XXt = vecX.T.dot(vecX) + E
+    XtY = (vecX.T.dot(vecy))
+    if XXt.size > 1:
+        w = np.linalg.inv(XXt).dot(XtY)
+    else:
+        w = 1.0/XXt * XtY
+    return matrix(w)
 
 
 def method_ridge_regression(vecX, vecy, train, test, states=2, params=[0.0001]):
@@ -86,51 +83,10 @@ def method_krr(vecX, vecy, train, test, states=2, params=[0.0001]):
         inds = np.where(kmeans.labels_ == i)[0]
         ny = vecy[train[inds]].reshape(len(inds), 1)
         nX = vecX[train[inds], :].reshape(len(inds), feats)
-        lrr = LatentRidgeRegression(1.0, params[0])
-        foo = lrr.train_model(nX, ny)
+        foo = train_model(nX, ny)
         sol[i, :] = np.array(foo).reshape(1, feats)
     lbls = kmeans.predict(vecX[test, :])
     return 'k-means Ridge Regression', np.sum(sol[lbls, :] * vecX[test, :], axis=1), lbls
-
-
-def method_tkrr(vecX, vecy, train, test, states=2, params=[0.0001]):
-    feats = vecX.shape[1]
-    kmeans = cl.KMeans(n_clusters=states, init='random', n_init=10, max_iter=100, tol=0.0001)
-    kmeans.fit(vecX)
-    sol = np.zeros((states, feats))
-    for i in range(states):
-        sinds = np.where(kmeans.labels_ == i)[0]
-        inds = []
-        for j in sinds:
-            if j in train:
-                inds.append(j)
-        ny = vecy[inds].reshape(len(inds), 1)
-        nX = vecX[inds, :].reshape(len(inds), feats)
-
-        lrr = LatentRidgeRegression(1.0, params[0])
-        foo = lrr.train_model(nX, ny)
-        sol[i, :] = np.array(foo).reshape(1, feats)
-    lbls = kmeans.labels_[test]
-    return 'Transductive k-means Ridge Regression', np.sum(sol[lbls, :] * vecX[test, :], axis=1), lbls
-
-
-def method_tlrr(vecX, vecy, train, test, states=2, params=[0.5, 0.0001, 1.0]):
-    transductive_mc = TransductiveMulticlassRegressionModel(co.matrix(vecX.T), classes=states, y=co.matrix(vecy),
-                                                            lbl_idx=train, trans_idx=test)
-    lsvr = TransductiveLatentRidgeRegression(theta=params[0], lam=params[1],
-                                             gam=params[2] * float(len(train) + len(test)))
-    (y_pred_lrr, lats) = lsvr.fit(transductive_mc, max_iter=50)
-    return 'Transductive Latent Ridge Regression', np.array(y_pred_lrr)[:, 0], np.array(lats)[test]
-
-
-def method_lrr(vecX, vecy, train, test, states=2, params=[0.5, 0.0001, 1.0]):
-    train_mc = MulticlassRegressionModel(co.matrix(vecX[train, :].T), classes=states, y=co.matrix(vecy[train]))
-    test_mc = MulticlassRegressionModel(co.matrix(vecX[test, :].T), classes=states)
-
-    lsvr = LatentRidgeRegression(theta=params[0], lam=params[1], gam=params[2] * float(len(train)))
-    (_, train_lats) = lsvr.fit(train_mc, max_iter=50)
-    (y_pred_lrr, lats) = lsvr.predict(test_mc)
-    return 'Latent Ridge Regression', np.array(y_pred_lrr)[:, 0], np.array(lats)
 
 
 def method_flexmix(vecX, vecy, train, test, states=2, params=[200, 0.001], plot=False):
@@ -263,7 +219,7 @@ def single_run(methods, vecX, vecy, vecz=None, train_frac=0.05, states=2, plot=F
     res = []
     for m in methods:
         (name, abbrv, pred, lats) = m(vecX, vecy, train, test, states=states)
-        res.append(measure_regression_performance(vecy[test], pred))
+        res.append(evaluate(vecy[test], pred))
         names.append(name)
 
     print('------------------------------------------')

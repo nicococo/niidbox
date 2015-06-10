@@ -14,7 +14,6 @@ from sklearn.metrics import median_absolute_error, \
 from sklearn.datasets import load_svmlight_file
 import sklearn.cluster as cl
 
-from latent_ridge_regression import LatentRidgeRegression
 from tcrf_regression import TransductiveCrfRegression
 from tcrfr_indep_model import TCrfRIndepModel
 from tcrfr_pair_model import TCrfRPairwisePotentialModel
@@ -42,21 +41,10 @@ def get_1d_toy_data(num_exms=300, plot=False):
     z[zx] = 1
 
     # inputs  x
-    # x = 4.0*np.sign(z-0.4)*gx + 2.0*np.sign(z-0.4) + 0.5*np.random.randn(grid_x)
-    # x = 4.0*np.sign(z-0.5)*gx + 0.6*(z+1.)*np.random.randn(grid_x)
-    # x = 1.2*np.sign(z-0.5)*gx + 0.4*np.random.randn(grid_x)
-    x = 1.8*(z-0.5)*gx+1.0*np.random.randn(grid_x)
-    # x = 4.0*np.sign(z-0.5)*gx + 1.0*np.sign(z-0.5) + 0.8*np.random.randn(grid_x)
-    # x = 8.0*gx + 0.4*np.random.randn(grid_xn)
-    # x = 1.0*gx*gx + 0.1*np.random.randn(grid_x)
+    x = 4.0*np.sign(z-0.5)*gx + 0.6*(z+1.)*np.random.randn(grid_x)
 
     # ..and corresponding target value y
-    # y = -20.*z + x*(6.*z+1.) + 0.01*np.random.randn(grid_x)
     y = -20.*z + x*(1.*z+1.) + 0.25*np.random.randn(grid_x)
-    # y = -20.*z + x*(6.*z+1.) + 0.3*np.random.randn(grid_x)
-    # y = 4.*z + x*(6.*z+1.) + 0.01*np.random.randn(grid_x)
-    # y = -8*z + x*(6.*z) + 0.001*np.random.randn(grid_x)
-    y = 0.6*z + 1.2*gx*(z-1.) + 0.05*np.random.randn(grid_x)
 
     vecX = x.reshape(grid_x, 1)
     vecy = y.reshape(grid_x)
@@ -131,6 +119,19 @@ def evaluate(truth, preds, true_lats, lats):
     errs.append(adjusted_rand_score(true_lats, lats))
     names.append('Adjusted Rand Score')
     return np.array(errs), names
+
+
+def train_model(self, vecX, vecy):
+    # solve the ridge regression problem
+    E = np.zeros((vecX.shape[1], vecX.shape[1]))
+    np.fill_diagonal(E, self.lam)
+    XXt = vecX.T.dot(vecX) + E
+    XtY = (vecX.T.dot(vecy))
+    if XXt.size > 1:
+        w = np.linalg.inv(XXt).dot(XtY)
+    else:
+        w = 1.0/XXt * XtY
+    return matrix(w)
 
 
 def method_transductive_regression(vecX, vecy, train, test, states=2, params=[0.0001, 0.7, 0.3], plot=False):
@@ -224,8 +225,7 @@ def method_krr(vecX, vecy, train, test, states=2, params=[0.0001], plot=False):
         inds = np.where(kmeans.labels_ == i)[0]
         ny = vecy[train[inds]].reshape(len(inds), 1)
         nX = vecX[train[inds], :].reshape(len(inds), feats)
-        lrr = LatentRidgeRegression(1.0, params[0])
-        foo = lrr.train_model(nX, ny)
+        foo = train_model(nX, ny)
         sol[i, :] = np.array(foo).reshape(1, feats)
     lbls = kmeans.predict(vecX[test, :])
     return 'K-means + Ridge Regression', np.sum(sol[lbls, :] * vecX[test, :], axis=1), lbls
@@ -331,13 +331,11 @@ def method_flexmix(vecX, vecy, train, test, states=2, params=[200, 0.001], plot=
 
 def main_run(methods, params, vecX, vecy, vecz, train_frac, val_frac, states, plot):
     import numpy as np
-
     from sklearn.svm import SVR
     from sklearn.metrics import median_absolute_error, mean_squared_error, r2_score, mean_absolute_error, adjusted_rand_score
     from sklearn.datasets import load_svmlight_file
     import sklearn.cluster as cl
 
-    from latent_ridge_regression import LatentRidgeRegression
     from tcrf_regression import TransductiveCrfRegression
     from tcrfr_indep_model import TCrfRIndepModel
     from tcrfr_pair_model import TCrfRPairwisePotentialModel
