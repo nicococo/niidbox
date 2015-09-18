@@ -52,7 +52,7 @@ class WellModel(StructuredObject):
         print self.state_dims_entries
         print self.state_dims_map
 
-    def get_hotstart_sol(self):
+    def get_hotstart(self):
         sol = uniform(self.get_num_dims(), 1, a=-1, b=+1)
         print('Hotstart position uniformly random with transition tradeoff {0}.'.format(self.hotstart_tradeoff))
         return sol
@@ -179,9 +179,10 @@ class WellModel(StructuredObject):
         return float(np.single(anom_score)), scores
 
     def get_joint_feature_map(self, idx, y=None):
-        y = np.array(y)
-        if y.size is None:
+        if y is None or y.size<=0:
             y = self.y[idx]
+        else:
+            y = np.array(y)
 
         T = y.size
         y = y.reshape(1, T)

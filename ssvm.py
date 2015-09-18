@@ -48,8 +48,9 @@ class SSVM(object):
 
             newConstr=0
             for i in range(N):
-                (val, ypred, psi_i) = self.sobj.map(w, i, add_loss=True)
-                psi_true = self.sobj.get_global_joint_feature_map(i)
+                self.sobj.update_solution(w)
+                (val, ypred, psi_i) = self.sobj.map(i, add_loss=True)
+                psi_true = self.sobj.get_joint_feature_map(i)
 
                 v_true = w.trans()*psi_true
                 v_pred = w.trans()*psi_i
@@ -103,7 +104,8 @@ class SSVM(object):
         vals = []
         structs = []
         for i in range(N):
-            (val, struct, foo) = pred_sobj.map(self.w, i, add_loss=False)
+            pred_sobj.update_solution(self.w)
+            (val, struct, foo) = pred_sobj.map(i, add_loss=False)
             vals.append(val)
             structs.append(struct)
         return vals, structs

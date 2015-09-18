@@ -76,7 +76,7 @@ def make_chunks(lens, add, X, y, well_id):
 if __name__=='__main__':
     TEST_WELL = 1
 
-    (well_id, X, y) = load_well_data('/home/nicococo/Data/WellFacies/facies_simple.csv')
+    (well_id, X, y) = load_well_data('../GeoFacies-Data/facies_simple.csv')
    
     # well indices
     well_inds = []
