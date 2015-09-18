@@ -1,8 +1,8 @@
 import matplotlib
-matplotlib.use('QT4Agg')
+# matplotlib.use('QT4Agg')
 # change to type 1 fonts!
-matplotlib.rcParams['pdf.fonttype'] = 42
-matplotlib.rcParams['ps.fonttype'] = 42
+# matplotlib.rcParams['pdf.fonttype'] = 42
+# matplotlib.rcParams['ps.fonttype'] = 42
 import matplotlib.pyplot as plt
 
 import numpy as np
@@ -19,16 +19,6 @@ from tcrf_regression import TransductiveCrfRegression
 from tcrfr_indep_model import TCrfRIndepModel
 from tcrfr_pair_model import TCrfRPairwisePotentialModel
 
-import argparse, sys
-from gridmap import Job, process_jobs
-
-
-def load_svmlight_data(fname):
-    (X, y) = load_svmlight_file(fname)
-    print y.shape
-    print X.shape
-    return np.array(X.todense()), y.reshape(X.shape[0])
-
 
 def get_1d_toy_data(num_exms=300, plot=False):
     grid_x = num_exms
@@ -44,19 +34,19 @@ def get_1d_toy_data(num_exms=300, plot=False):
     # inputs  x
     # x = 4.0*np.sign(z-0.4)*gx + 2.0*np.sign(z-0.4) + 0.5*np.random.randn(grid_x)
     # x = 4.0*np.sign(z-0.5)*gx + 0.6*(z+1.)*np.random.randn(grid_x)
-    # x = 1.2*np.sign(z-0.5)*gx + 0.4*np.random.randn(grid_x)
-    x = 1.8*(z-0.5)*gx+1.0*np.random.randn(grid_x)
+    x = 1.2*np.sign(z-0.5)*gx + 0.4*np.random.randn(grid_x)
+    # x = 1.8*(z-0.5)*gx+1.0*np.random.randn(grid_x)
     # x = 4.0*np.sign(z-0.5)*gx + 1.0*np.sign(z-0.5) + 0.8*np.random.randn(grid_x)
     # x = 8.0*gx + 0.4*np.random.randn(grid_xn)
     # x = 1.0*gx*gx + 0.1*np.random.randn(grid_x)
 
     # ..and corresponding target value y
     # y = -20.*z + x*(6.*z+1.) + 0.01*np.random.randn(grid_x)
-    y = -20.*z + x*(1.*z+1.) + 0.25*np.random.randn(grid_x)
+    # y = -20.*z + x*(1.*z+1.) + 0.25*np.random.randn(grid_x)
     # y = -20.*z + x*(6.*z+1.) + 0.3*np.random.randn(grid_x)
-    # y = 4.*z + x*(6.*z+1.) + 0.01*np.random.randn(grid_x)
+    y = 4.*z + x*(6.*z+1.) + 0.01*np.random.randn(grid_x)
     # y = -8*z + x*(6.*z) + 0.001*np.random.randn(grid_x)
-    y = 0.6*z + 1.2*gx*(z-1.) + 0.05*np.random.randn(grid_x)
+    # y = 0.6*z + 1.2*gx*(z-1.) + 0.01*np.random.randn(grid_x)
 
     vecX = x.reshape(grid_x, 1)
     vecy = y.reshape(grid_x)
@@ -158,19 +148,38 @@ def method_transductive_regression(vecX, vecy, train, test, states=2, params=[0.
     return 'Transductive Regression', w.T.dot(vecX[test, :].T).T, np.ones(len(test))
 
 
-def method_tcrfr(vecX, vecy, train, test, states=2, params=[0.9, 0.00001, 0.5], plot=False):
+def method_tcrfr(vecX, vecy, train, test, states=2, params=[0.9, 0.00001, 0.5], true_latent=None, plot=False):
     # model = TCrfRIndepModel(data=vecX.T, labels=vecy[train], label_inds=train, unlabeled_inds=test, states=states)
     A = np.zeros((vecX.shape[0], vecX.shape[0]))
     for i in range(vecX.shape[0]-1):
         A[i, i+1] = 1
         A[i+1, i] = 1
+    # for i in range(vecX.shape[0]-2):
+    #     A[i, i+2] = 1
+    #     A[i+2, i] = 1
+    # for i in range(vecX.shape[0]-3):
+    #     A[i, i+3] = 1
+    #     A[i+3, i] = 1
+    # for i in range(vecX.shape[0]-4):
+    #     A[i, i+4] = 1
+    #     A[i+4, i] = 1
+    for i in range(vecX.shape[0]-4):
+        if i in train:
+            A[i, i+1] = 1
+            A[i+1, i] = 1
+            A[i, i+2] = 1
+            A[i+2, i] = 1
+            A[i, i+3] = 1
+            A[i+3, i] = 1
+            A[i, i+4] = 1
+            A[i+4, i] = 1
 
         # A[i+1, i] = 1
     model = TCrfRPairwisePotentialModel(data=vecX.T, labels=vecy[train], label_inds=train, unlabeled_inds=test, states=states, A=A)
     # model.test_qp_param()
 
     tcrfr = TransductiveCrfRegression(reg_theta=params[0], reg_lambda=params[1], reg_gamma=params[2]*float(len(train)+len(test)))
-    tcrfr.fit(model, max_iter=40, use_grads=False)
+    tcrfr.fit(model, max_iter=40, n_init=1, use_grads=False)
     y_preds, lats = tcrfr.predict(model)
     print lats
 
@@ -188,7 +197,13 @@ def method_tcrfr(vecX, vecy, train, test, states=2, params=[0.9, 0.00001, 0.5], 
         ytrain = model.get_labeled_predictions(tcrfr.u)
         plt.plot(vecX[train, 0], ytrain, 'xg', alpha=0.8, markersize=10.0)
 
+        print('Test performance: ')
+        print evaluate(vecy[test], y_preds, true_latent[test], lats)
+        print('Training performance: ')
+        print evaluate(vecy[train], ytrain, true_latent[train], model.latent[train])
+
         plt.show()
+
     return 'TCRFR (Pairwise Potentials)', y_preds, lats
 
 
@@ -231,7 +246,7 @@ def method_krr(vecX, vecy, train, test, states=2, params=[0.0001], plot=False):
     return 'K-means + Ridge Regression', np.sum(sol[lbls, :] * vecX[test, :], axis=1), lbls
 
 
-def method_tcrfr_indep(vecX, vecy, train, test, states=2, params=[0.9, 0.00001, 0.4, 100.], plot=False):
+def method_tcrfr_indep(vecX, vecy, train, test, states=2, params=[0.9, 0.00001, 0.4, 100.], true_latent=None, plot=False):
     # A = np.zeros((vecX.shape[0], vecX.shape[0]))
     A = sparse.lil_matrix((vecX.shape[0], vecX.shape[0]))
     for i in range(vecX.shape[0]-4):
@@ -264,6 +279,11 @@ def method_tcrfr_indep(vecX, vecy, train, test, states=2, params=[0.9, 0.00001, 
         plt.plot(vecX[train, 0], model.latent[train], 'ob', alpha=0.6, markersize=6.0)
         ytrain = model.get_labeled_predictions(tcrfr.u)
         plt.plot(vecX[train, 0], ytrain, 'xg', alpha=0.8, markersize=10.0)
+
+        print('Test performance: ')
+        print evaluate(vecy[test], y_preds, true_latent[test], lats)
+        print('Training performance: ')
+        print evaluate(vecy[train], ytrain, true_latent[train], model.latent[train])
 
         plt.show()
     return 'TCRFR (Indep)', y_preds, lats
@@ -356,7 +376,7 @@ def main_run(methods, params, vecX, vecy, vecz, train_frac, val_frac, states, pl
     vecX /= np.max(np.abs(vecX[train, :]))
     # vecX *= 4.
     vecy /= np.max(np.abs(vecy[train]))
-    vecy *= 10.
+    vecy *= 20.
     vecX = np.hstack((vecX, np.ones((vecX.shape[0], 1))))
 
     names = []
@@ -374,7 +394,7 @@ def main_run(methods, params, vecX, vecy, vecz, train_frac, val_frac, states, pl
             print('Testing parameters {0} for method {1}'.format(p, methods[m]))
             (name, _pred, _lats) = methods[m](np.array(vecX, copy=True), np.array(vecy, copy=True),
                                             np.array(train, copy=True), np.array(test, copy=True),
-                                            states=states, params=p, plot=False)
+                                            states=states, params=p, true_latent=vecz, plot=False)
             eval_val, _ = evaluate(vecy[test[:val_nums]], _pred[:val_nums], vecz[test[:val_nums]], _lats[:val_nums])
             if eval_val[1] < val_error:
                 pred = _pred
@@ -389,6 +409,7 @@ def main_run(methods, params, vecX, vecy, vecz, train_frac, val_frac, states, pl
         if plot:
             plt.figure(1)
             plt.plot(vecX[test[val_nums:], 0], pred[val_nums:], fmts[m], alpha=0.8, markersize=10.0)
+
     if plot:
         plt_names = ['Datapoints']
         plt_names.extend(names)
@@ -418,13 +439,13 @@ def plot_results(name):
     states = f['states']
     methods = f['methods']
     names = f['names']
-    MEASURES = f['MEASURES']
+    measures = f['measures']
 
     plt.figure(1)
     cnt = 0
     fmts = ['--xm', '--xy', '--xc', ':xg', ':xm', '-ob', '-or']
     lws = [2., 2., 2., 2., 2., 2., 2.]
-    for i in range(MEASURES):
+    for i in range(measures):
         plt.subplot(2, 3, i+1)
         for m in range(len(methods)):
             plt.errorbar(states, means[:, cnt], yerr=stds[:, cnt], fmt=fmts[m],
@@ -433,119 +454,6 @@ def plot_results(name):
         plt.xlabel('Number of Latent States', fontsize=20)
         plt.ylabel(f['measure_names'][i], fontsize=20)
         plt.xlim([1, states[-1]])
-        if i == MEASURES-1:
+        if i == measures-1:
             plt.legend(names, loc=4, fontsize=18)
     plt.show()
-
-
-if __name__ == '__main__':
-    from test_latent_mc import *
-    import logging
-    logging.captureWarnings(True)
-    logging.basicConfig(format=('%(asctime)s - %(name)s - %(levelname)s - ' +
-                                '%(message)s'), level=logging.INFO)
-
-    parser = argparse.ArgumentParser()
-    parser.add_argument("-m", "--max_states", help="Max state for testing (default=3).", default=1, type=int)
-    parser.add_argument("-f", "--train_frac", help="Fraction of training exms (default=0.75)", default=0.4, type=float)
-    parser.add_argument("-d", "--datapoints", help="Amount of data points (default=1000)", default=300, type=int)
-    parser.add_argument("-r", "--reps", help="Number of repetitions (default 10)", default=1, type=int)
-    parser.add_argument("-p", "--processes", help="Number of processes (default 4)", default=4, type=int)
-    parser.add_argument("-l", "--local", help="Run local or distribute? (default 1)", default=1, type=int)
-    parser.add_argument("-s", "--set", help="Select active methods set. (default 'full')", default='full', type=str)
-    arguments = parser.parse_args(sys.argv[1:])
-    print arguments
-
-    # plot_results('res_toy_[1, 2, 3, 4, 5, 6].npz')
-
-    # this is for generating a nice looking motivational example
-    # (vecX, vecy, vecz) = get_1d_toy_data(num_exms=100, plot=True)
-    (vecX, vecy, vecz) = get_1d_toy_data(num_exms=arguments.datapoints, plot=False)
-
-    # generate parameter sets
-    param_flx = [[1000, 0.001], [1000, 0.0001]]
-    param_rr = [[0.1], [0.01], [0.001], [0.0001], [0.00001], [0.000001]]
-    param_svr = [[0.1, 0.01], [0.1, 0.1], [1.0, .01], [1.0, 0.1], [10., .01], [10., .1], [100., .1], [100., .01]]
-    param_krr = param_rr
-    param_tr = list()
-    for i in range(len(param_rr)):
-        for j in range(len(param_rr)):
-            for k in range(len(param_rr)):
-                param_tr.append([param_rr[i][0], 100.*param_rr[j][0], 100.*param_rr[k][0]])
-    param_tcrfr_indep = list()
-    param_tcrfr = list()
-    tcrfr_theta = [0.9]
-    tcrfr_lambda = [0.000001]
-    tcrfr_gamma = [0.5, 1.]
-    tcrfr_neighb = [10., 100.]
-    for i in range(len(tcrfr_theta)):
-        for j in range(len(tcrfr_lambda)):
-            for k in range(len(tcrfr_gamma)):
-                param_tcrfr.append([tcrfr_theta[i], tcrfr_lambda[j], tcrfr_gamma[k]])
-                for l in range(len(tcrfr_neighb)):
-                    param_tcrfr_indep.append([tcrfr_theta[i], tcrfr_lambda[j], tcrfr_gamma[k], tcrfr_neighb[l]])
-
-    # full stack of methods
-    methods = [method_ridge_regression, method_tcrfr_indep]
-    methods = [method_tcrfr_indep]
-    params = [param_tcrfr_indep]
-    if arguments.set == 'full':
-        params = [param_rr, param_svr, param_krr, param_tr, param_flx, param_tcrfr_indep, param_tcrfr]
-        methods = [method_ridge_regression, method_svr, method_krr,
-                   method_transductive_regression, method_flexmix,
-                   method_tcrfr_indep, method_tcrfr]
-    # methods = [method_flexmix, method_tcrfr_indep]
-    # methods = [method_tcrfr_indep, method_tcrfr]
-    # methods = [method_ridge_regression, method_tcrfr_indep]
-    # main_run(methods, vecX, vecy, vecz, train_frac=0.4, states=3, plot=True)
-
-    jobs = []
-    MEASURES = 6
-    REPS = arguments.reps
-    states = range(1, arguments.max_states+1)
-    mse = {}
-    sn_map = {}
-    cnt = 0
-    for s in range(len(states)):
-        if s not in mse:
-            mse[s] = np.zeros((REPS, MEASURES*len(methods)))
-        for n in range(REPS):
-            job = Job(main_run, [methods, params, vecX, vecy, vecz, arguments.train_frac, 0.1, states[s], False],
-                      mem_max='8G', mem_free='16G', name='TCRFR it({0}) state({1})'.format(n, states[s]))
-            jobs.append(job)
-            sn_map[cnt] = (s, n)
-            cnt += 1
-
-    print '---------------'
-    print mse
-
-    processedJobs = process_jobs(jobs, max_processes=arguments.processes, local=arguments.local >= 1)
-    results = []
-    print "ret fields AFTER execution on local machine"
-    for (i, result) in enumerate(processedJobs):
-        print "Job #", i
-        (names, res) = result
-        (s, n) = sn_map[i]
-        perf = mse[s]
-        cnt = 0
-        for p in range(MEASURES):
-            for m in range(len(methods)):
-                perf[n, cnt] = res[m][0][p]
-                cnt += 1
-
-    measure_names = res[0][1]
-    means = np.zeros((len(states), MEASURES*len(methods)))
-    stds = np.zeros((len(states), MEASURES*len(methods)))
-    print names
-    print res[0][1]
-    for key in mse.iterkeys():
-        means[key, :] = np.mean(mse[key], axis=0)
-        stds[key, :] = np.std(mse[key], axis=0)
-        print states[key], ': ', np.mean(mse[key], axis=0).tolist()
-        print 'STD ', np.std(mse[key], axis=0).tolist()
-
-    # save results
-    np.savez('res_toy_{0}.npz'.format(states), MEASURES=MEASURES, methods=methods, means=means, stds=stds, states=states,
-             measure_names=measure_names, names=names)
-    # ..and stop
-    print('Finish!')

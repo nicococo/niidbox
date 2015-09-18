@@ -57,12 +57,29 @@ class TCrfRPairwisePotentialModel(TransductiveStructuredModel):
         self.qp_relax_init()
 
     def get_hotstart(self):
-        return [np.random.randn(self.S*self.feats), np.random.randn(self.get_num_dims())]
+        n_trans = np.round(self.S*(self.S-1.)/2.+self.S)
+        return [np.random.randn(self.S*self.feats), np.random.randn(n_trans + self.S*self.get_num_feats())]
 
     def get_num_dims(self):
-        # transition part: edges x (states*states)
-        # emission part: nodes x states x features
+        # number of values that need to be stored for a symmetric matrix
+        n_trans = np.round(self.S*(self.S-1.)/2.+self.S)
+        # transition part: (states*(states-1)+states) since transitions should be symmetric
+        # emission part: states*features
         return self.S*self.S + self.S*self.get_num_feats()
+
+    def unpack_param(self, param_v):
+        states = self.S
+        v = np.zeros(states*states + self.S*self.get_num_feats())
+        trans = np.zeros((states, states))
+        cnt = 0
+        for s1 in range(states):
+            for s2 in range(s1, states):
+                trans[s1, s2] = param_v[cnt]
+                trans[s2, s1] = param_v[cnt]
+                cnt += 1
+        v[:states*states] = trans.reshape(states*states)
+        v[states*states:] = param_v[cnt:]
+        return v
 
     def get_labeled_predictions(self, sol, sample=None):
         lats = self.latent
@@ -76,7 +93,7 @@ class TCrfRPairwisePotentialModel(TransductiveStructuredModel):
         return sol.dot(phis[:, self.label_inds])
 
     def log_partition_derivative(self, sol):
-        return self.get_gibbs_partition_derivative(sol)
+        return self.get_log_partition_derivative(sol)
 
     def maps(self, sol):
         theta = sol[0]
@@ -134,14 +151,9 @@ class TCrfRPairwisePotentialModel(TransductiveStructuredModel):
         return pmap
 
     def log_partition(self, sol):
+        # pseudolikelihood approximation = fix the neighbors
         v_trans = sol[:self.S*self.S].reshape((self.S, self.S), order='F')
         v_em = sol[self.S*self.S:].reshape((self.feats, self.S), order='F')
-        # pseudolikelihood approximation
-        # log sum_Z exp(<sol, Psi(X,Z)>) ~
-        # = log sum_Z exp(<sol, sum_i Phi(x_i,z_i)>)
-        # = log sum_z1..zN prod_i exp(<sol, Phi(x_i,z_i)>)
-        # = log sum_zN..z2 sum_z1 exp(<sol, Phi(x_1,z_1)>)*prod_{i/1}exp(<sol, Phi(x_i,z_i)>)
-        # = log sum_zN..z2 prod_{i/1}exp(<sol, Phi(x_i,z_i)>) * (sum_z1 exp(<sol, Phi(x_1,z_1)>))
         f_inner = np.zeros((self.S, self.samples))
         for s in range(self.S):
             w = v_trans[s, self.latent]
@@ -155,6 +167,36 @@ class TCrfRPairwisePotentialModel(TransductiveStructuredModel):
         if np.isnan(foo) or np.isinf(foo):
             print 'TCRFR Pairwise Potential Model: the log_partition is NAN or INF!!'
         return foo
+
+    def get_log_partition_derivative(self, sol):
+        v_trans = sol[:self.S*self.S].reshape((self.S, self.S), order='F')
+        v_em = sol[self.S*self.S:].reshape((self.feats, self.S), order='F')
+        # (A)
+        f = np.zeros((self.S, self.samples))
+        for s in range(self.S):
+            w = v_trans[s, self.latent]
+            foo = np.zeros(self.samples)
+            for n in range(len(self.N)):
+                foo[n] = np.sum(w[self.N[n]])
+            f[s, :] = np.exp(v_em[:, s].dot(self.data) + foo)
+        sum_f = np.sum(f, axis=0)
+        # (B)
+        for s in range(self.S):
+            f[s, :] /= sum_f
+        # (C)
+        phis = np.zeros((self.get_num_dims(), self.samples))
+        for s in range(self.S):
+            foo = np.zeros(self.samples)
+            for n in range(len(self.N)):
+                foo[n] = np.sum(self.N[n]==s)
+            phis[s, :] = foo * f[s, :]
+
+        idx = self.S*self.S
+        for s in range(self.S):
+            for feat in range(self.feats):
+                phis[idx, :] = self.data[feat, :] * f[s, :]
+                idx += 1
+        return np.sum(phis, axis=1)
 
     def get_gibbs_partition_derivative(self, sol, max_iter=5):
         """ Gibbs sampler for the expectation of psi-feature map
@@ -376,11 +418,10 @@ class TCrfRPairwisePotentialModel(TransductiveStructuredModel):
         cnt = 0
         for e in self.E:
             d[cnt:cnt+states*states] = param_v[:states*states]
-            # if e[0] not in self.label_inds or e[1] not in self.label_inds:
-                # for i in range(states):
-                #    ind = int(self.local_pot_inds[i, i])
-                #    d[cnt+ind] *= 1000.
-                # d[cnt:cnt+states*states] *= 0.1
+            if e[0] in self.label_inds or e[1] in self.label_inds:
+                for i in range(states):
+                   ind = int(self.local_pot_inds[i, i])
+                   d[cnt+ind] += 0.
             cnt += states*states
 
         # emissions
@@ -392,7 +433,23 @@ class TCrfRPairwisePotentialModel(TransductiveStructuredModel):
                 sol_cnt += feats
                 cnt += 1
 
+        P2 = spmatrix(0.0, range(dims), range(dims))
+        cnt = 0
+        for e in self.E:
+            for s1 in range(states):
+                for s2 in range(states):
+                    if s1 == s2:
+                        if e[0] in self.label_inds or e[1] in self.label_inds:
+                            P2[cnt, cnt] = 0.000001
+                        else:
+                            P2[cnt, cnt] = 0.1
+                    else:
+                        P2[cnt, cnt] = 0.1
+                    cnt += 1
+
+        P2 = spmatrix(0.0, range(dims), range(dims))
         P = spmatrix(0.0, range(dims), range(dims))
+
         # ridge regression part
         cnt = offset
         idx = 0
@@ -405,8 +462,7 @@ class TCrfRPairwisePotentialModel(TransductiveStructuredModel):
             for s1 in range(states):
                 for s2 in range(states):
                     P[i_start+s2, i_start+s1] = 2.0*u[:, s2].T.dot(self.data[:, ind]) * u[:, s1].T.dot(self.data[:, ind])
-
             # next label
             idx += 1
 
-        return theta/2.0*P, -theta*c-(1.0-theta)*d
+        return theta/2.0*P + (1.0-theta)/2.0*P2, -theta*c-(1.0-theta)*d

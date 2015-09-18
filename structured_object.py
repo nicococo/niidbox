@@ -113,7 +113,6 @@ class TransductiveStructuredModel(object):
         print('- Label Inds    : {0}'.format(self.label_inds.shape))
         print('- Unlabeled Inds: {0}'.format(self.unlabeled_inds.shape))
 
-
     def get_hotstart(self):
         pass
 

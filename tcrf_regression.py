@@ -19,20 +19,43 @@ class TransductiveCrfRegression(object):
         self.reg_theta = reg_theta
 
     def crf_obj(self, x, model, psi):
-        return self.reg_gamma/2.0*x.T.dot(x) - x.T.dot(psi) + model.log_partition(x)
+        # foo = 0.1*np.ones((3, 3))
+        # for s in range(3):
+        #     foo[s, s] = 0.8
+        # x[:3*3] = foo.reshape(3*3)
+        xn = model.unpack_param(x)
+        dims = xn.size
+        Q = np.diag(1000.0*self.reg_gamma*np.ones(dims))
+        for i in range(model.S*model.S):
+            Q[i, i] *= 0.001
+
+        #print 1.0/2.0*xn.T.dot(Q.dot(xn))
+        #print self.reg_gamma/2.0*xn.T.dot(xn)
+        #return self.reg_gamma/2.0*xn.T.dot(xn) - xn.T.dot(psi) + model.log_partition(xn)
+        return 1.0/2.0*xn.T.dot(Q.dot(xn)) - xn.T.dot(psi) + model.log_partition(xn)
 
     def crf_grad(self, x, model, psi):
-        start = self.reg_gamma*x
-        grad_log_part = model.log_partition_derivative(x)
+        xn = model.unpack_param(x)
+        start = self.reg_gamma*xn
+        grad_log_part = model.log_partition_derivative(xn)
+        print grad_log_part
+        print grad_log_part.size
         return start - psi + grad_log_part
 
     def estimate_crf_parameters(self, v, psi, model, use_grads=True):
-        vstar = 1.0 / self.reg_gamma * psi
+        vstar = v
         if use_grads:
             res = op.minimize(self.crf_obj, jac=self.crf_grad, x0=vstar, args=(model, psi), method='L-BFGS-B')
         else:
             res = op.minimize(self.crf_obj, x0=vstar, args=(model, psi), method='L-BFGS-B')
         print res.nfev, ' - ', res.nit, ' - ', res.fun
+
+        # foo = 0.1*np.ones((3, 3))
+        # for s in range(3):
+        #     foo[s, s] = 0.8
+        # res.x[:3*3] = foo.reshape(3*3)
+
+        print model.unpack_param(res.x)
         return res.fun, res.x
         # else:
         #     # avoid objective function value calls:
@@ -98,7 +121,8 @@ class TransductiveCrfRegression(object):
         # terminate if objective function value doesn't change much
         while cnt_iter < max_iter and not is_converged:
             # 1. infer the latent states given the current intermediate solutions u and v
-            phis, psi = model.maps([self.reg_theta, u, v])
+            vn = model.unpack_param(v)
+            phis, psi = model.maps([self.reg_theta, u, vn])
 
             # 2. solve the crf parameter estimation problem
             obj_crf, v = self.estimate_crf_parameters(v, psi, model, use_grads=use_grads)
@@ -110,8 +134,8 @@ class TransductiveCrfRegression(object):
             old_obj = obj
             obj = self.reg_theta * obj_regression + (1.0 - self.reg_theta) * obj_crf
             rel = np.abs((old_obj - obj) / obj)
-            print('Iter={0} objective={1:4.2f} rel={2:2.4f} lats={3}'.format(
-                cnt_iter, obj, rel, np.unique(model.latent).size))
+            print('Iter={0} regr={1:4.2f} crf={2:4.2f}; objective={3:4.2f} rel={4:2.4f} lats={5}'.format(
+                cnt_iter, obj_regression, obj_crf, obj, rel, np.unique(model.latent).size))
             if best_sol[0] > obj:
                 best_sol = [obj, u, v]
             if cnt_iter > 3 and rel < 0.0001:

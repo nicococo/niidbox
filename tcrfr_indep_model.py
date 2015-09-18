@@ -57,6 +57,9 @@ class TCrfRIndepModel(TransductiveStructuredModel):
     def get_num_dims(self):
         return self.get_num_feats()*self.states
 
+    def unpack_param(self, param_v):
+        return param_v
+
     def get_labeled_predictions(self, sol):
         # for debugging only
         phis = np.zeros((self.get_num_dims(), self.samples))
