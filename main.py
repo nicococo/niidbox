@@ -16,9 +16,9 @@ def generate_param_set(set_name = 'full'):
     tcrfr_gamma = [0.5, 1.]
     tcrfr_neighb = [10., 100.]
 
-    tcrfr_theta = [0.999]
+    tcrfr_theta = [0.85]
     tcrfr_lambda = [0.000001]
-    tcrfr_gamma = [1.0]
+    tcrfr_gamma = [100.0]
     tcrfr_neighb = [10.]
 
     for i in range(len(tcrfr_theta)):
@@ -32,17 +32,20 @@ def generate_param_set(set_name = 'full'):
     methods = []
     if set_name == 'full':
         params = [param_rr, param_svr, param_krr, param_tr, param_flx, param_tcrfr_indep, param_tcrfr]
-        methods = [method_ridge_regression, method_svr, method_krr,
+        methods = [method_rr, method_svr, method_krr,
                    method_transductive_regression, method_flexmix,
                    method_tcrfr_indep, method_tcrfr]
     if 'tcrfr' in set_name:
-        methods.append(method_tcrfr)
+        methods.append(method_tcrfr_v2)
         params.append(param_tcrfr)
     if 'tcrfr_indep' in set_name:
         methods.append(method_tcrfr_indep)
         params.append(param_tcrfr_indep)
     if 'rr' in set_name:
-        methods.append(method_ridge_regression)
+        methods.append(method_rr)
+        params.append(param_rr)
+    if 'lb' in set_name:
+        methods.append(method_lb)
         params.append(param_rr)
     if 'svr' in set_name:
         methods.append(method_svr)
@@ -74,10 +77,10 @@ if __name__ == '__main__':
     parser.add_argument("-b", "--results_filename", help="Set results filename (default='res_toy_[1, 2, 3, 4, 5].npz').", default='res_toy_[1, 2, 3, 4, 5].npz', type=str)
     # experiment arguments
     parser.add_argument("-m", "--max_states", help="Max state for testing (default=3).", default=3, type=int)
-    parser.add_argument("-f", "--train_frac", help="Fraction of training exms (default=0.75)", default=0.6, type=float)
+    parser.add_argument("-f", "--train_frac", help="Fraction of training exms (default=0.75)", default=0.1, type=float)
     parser.add_argument("-d", "--datapoints", help="Amount of data points (default=1000)", default=1000, type=int)
     parser.add_argument("-r", "--reps", help="Number of repetitions (default 10)", default=1, type=int)
-    parser.add_argument("-s", "--method_set", help="Select active method set. (default 'full')", default='tcrfr', type=str)
+    parser.add_argument("-s", "--method_set", help="Select active method set. (default 'full')", default='lb,rr,tcrfr,tcrfr_indep', type=str)
     # grid computing arguments
     parser.add_argument("-p", "--processes", help="Number of processes (default 4)", default=1, type=int)
     parser.add_argument("-l", "--local", help="Run local or distribute? (default True)", default=True, type=bool)
@@ -90,7 +93,7 @@ if __name__ == '__main__':
         exit(0)
 
     # this is for generating a nice looking motivational example
-    (vecX, vecy, vecz) = get_1d_toy_data(num_exms=arguments.datapoints, plot=False)
+    (vecX, vecy, vecz) = get_1d_toy_data(num_exms=arguments.datapoints, plot=True)
 
     # generate parameter sets
     methods, params = generate_param_set(arguments.method_set)
@@ -104,7 +107,7 @@ if __name__ == '__main__':
     if arguments.local:
         # This is necessary for using profiler
         print("Local computations.")
-        # for s in range(len(states)):
+        #for s in range(len(states)):
         if True:
             s = states[-2]
             if s not in mse:

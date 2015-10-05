@@ -1,4 +1,4 @@
-import matplotlib
+# import matplotlib
 # matplotlib.use('QT4Agg')
 # change to type 1 fonts!
 # matplotlib.rcParams['pdf.fonttype'] = 42
@@ -13,6 +13,9 @@ from sklearn.svm import SVR
 from sklearn.metrics import median_absolute_error, \
     mean_squared_error, r2_score, mean_absolute_error, adjusted_rand_score
 import sklearn.cluster as cl
+
+from tcrfr_qp import TCRFR_QP
+from tcrfr_fast import TCRFR_Fast
 
 from tcrf_regression import TransductiveCrfRegression
 from tcrfr_indep_model import TCrfRIndepModel
@@ -219,7 +222,75 @@ def method_tcrfr(vecX, vecy, train, test, states=2, params=[0.9, 0.00001, 0.5], 
     return 'TCRFR (Pairwise Potentials)', y_preds, lats
 
 
-def method_ridge_regression(vecX, vecy, train, test, states=2, params=[0.0001], plot=False):
+def method_tcrfr_v2(vecX, vecy, train, test, states=2, params=[0.9, 0.00001, 0.5], true_latent=None, plot=False):
+    # model = TCrfRIndepModel(data=vecX.T, labels=vecy[train], label_inds=train, unlabeled_inds=test, states=states)
+    A = np.zeros((vecX.shape[0], vecX.shape[0]))
+    for i in range(vecX.shape[0]-1):
+        if i in train or i+1 in train:
+            A[i, i+1] = 1
+            A[i+1, i] = 1
+        else:
+            A[i, i+1] = 1
+            A[i+1, i] = 1
+
+    for i in range(vecX.shape[0]-12):
+        if i in train or i+12 in train:
+            A[i, i+12] = 1
+            A[i+12, i] = 1
+    for i in range(vecX.shape[0]-8):
+        if i in train or i+8 in train:
+            A[i, i+8] = 1
+            A[i+8, i] = 1
+    # for i in range(vecX.shape[0]-3):
+    #     A[i, i+3] = 1
+    #     A[i+3, i] = 1
+    # for i in range(vecX.shape[0]-4):
+    #     A[i, i+4] = 1
+    #     A[i+4, i] = 1
+    for i in range(vecX.shape[0]-4):
+        if i in train:
+            A[i, i+1] = 1
+            A[i+1, i] = 1
+            A[i, i+2] = 1
+            A[i+2, i] = 1
+            A[i, i+3] = 1
+            A[i+3, i] = 1
+            A[i, i+4] = 1
+            A[i+4, i] = 1
+
+    tcrfr = TCRFR_Fast(data=vecX.T, labels=vecy[train], label_inds=train, unlabeled_inds=test, states=states, A=A,
+                  reg_theta=params[0], reg_lambda=params[1], reg_gamma=params[2]*float(len(train)+len(test)),
+                  trans_regs=[.05, 1.01], trans_sym=[0])
+
+    tcrfr.solution_latent = true_latent
+    tcrfr.fit(max_iter=40, use_grads=False)
+    y_preds, lats = tcrfr.predict()
+    print lats
+
+    if plot:
+        plt.figure(1)
+        plt.subplot(1, 2, 1)
+        plt.plot(vecX[:, 0], vecy, '.g', alpha=0.1, markersize=10.0)
+        plt.plot(vecX[test, 0], vecy[test], 'or', alpha=0.6, markersize=10.0)
+        plt.plot(vecX[test, 0], y_preds[test], 'oc', alpha=0.6, markersize=6.0)
+        plt.plot(vecX[test, 0], lats[test], 'ob', alpha=0.6, markersize=6.0)
+
+        plt.subplot(1, 2, 2)
+        plt.plot(vecX[train, 0], vecy[train], 'or', alpha=0.6, markersize=10.0)
+        plt.plot(vecX[train, 0], lats[train], 'ob', alpha=0.6, markersize=6.0)
+        plt.plot(vecX[train, 0], y_preds[train], 'xg', alpha=0.8, markersize=10.0)
+
+        print('Test performance: ')
+        print evaluate(vecy[test], y_preds[test], true_latent[test], lats[test])
+        print('Training performance: ')
+        print evaluate(vecy[train], y_preds[train], true_latent[train], lats[train])
+
+        plt.show()
+
+    return 'TCRFR (Pairwise Potentials)', y_preds[test], lats[test]
+
+
+def method_rr(vecX, vecy, train, test, states=2, params=[0.0001], true_latent=None, plot=False):
     # OLS solution
     # vecX in (samples x dims)
     # vecy in (samples)
@@ -230,6 +301,24 @@ def method_ridge_regression(vecX, vecy, train, test, states=2, params=[0.0001], 
     XtY = (vecX[train, :].T.dot(vecy[train]))
     w = np.linalg.inv(XXt).dot(XtY.T)
     return 'Ridge Regression', w.T.dot(vecX[test, :].T).T, np.ones(len(test))
+
+
+def method_lb(vecX, vecy, train, test, states=2, params=[0.0001], true_latent=None, plot=False):
+    # ridge regression lower bound by using ground truth latent state information
+
+    preds = np.zeros(len(test))
+    for s in range(states):
+        train_inds = np.where(true_latent[train] == s)[0]
+        test_inds = np.where(true_latent[test] == s)[0]
+        if train_inds.size >= 2:
+            E = np.zeros((vecX.shape[1], vecX.shape[1]))
+            np.fill_diagonal(E, params)
+            XXt = vecX[train[train_inds], :].T.dot(vecX[train[train_inds], :]) + E
+            XtY = (vecX[train[train_inds], :].T.dot(vecy[train[train_inds]]))
+            w = np.linalg.inv(XXt).dot(XtY.T)
+            preds[test_inds] = w.T.dot(vecX[test[test_inds], :].T).T
+
+    return 'Lower Bound', preds, np.ones(len(test))
 
 
 def method_svr(vecX, vecy, train, test, states=2, params=[1.0, 0.1, 'linear'], plot=False):
@@ -269,7 +358,7 @@ def method_tcrfr_indep(vecX, vecy, train, test, states=2, params=[0.9, 0.00001, 
         A[i+3, i] = 1
         A[i, i+4] = 1
         A[i+4, i] = 1
-
+    print params
     model = TCrfRIndepModel(data=vecX.T, labels=vecy[train], label_inds=train,
                             unlabeled_inds=test, states=states, A=A, lbl_neighbor_gain=params[3])
     tcrfr = TransductiveCrfRegression(reg_theta=params[0], reg_lambda=params[1], reg_gamma=params[2]*float(len(train)+len(test)))

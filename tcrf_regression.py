@@ -25,21 +25,17 @@ class TransductiveCrfRegression(object):
         # x[:3*3] = foo.reshape(3*3)
         xn = model.unpack_param(x)
         dims = xn.size
-        Q = np.diag(1000.0*self.reg_gamma*np.ones(dims))
-        for i in range(model.S*model.S):
-            Q[i, i] *= 0.001
-
         #print 1.0/2.0*xn.T.dot(Q.dot(xn))
         #print self.reg_gamma/2.0*xn.T.dot(xn)
         #return self.reg_gamma/2.0*xn.T.dot(xn) - xn.T.dot(psi) + model.log_partition(xn)
-        return 1.0/2.0*xn.T.dot(Q.dot(xn)) - xn.T.dot(psi) + model.log_partition(xn)
+        return 1.0/2.0*xn.T.dot(xn) - xn.T.dot(psi) + model.log_partition(xn)
 
     def crf_grad(self, x, model, psi):
         xn = model.unpack_param(x)
         start = self.reg_gamma*xn
         grad_log_part = model.log_partition_derivative(xn)
-        print grad_log_part
-        print grad_log_part.size
+        # print grad_log_part
+        # print grad_log_part.size
         return start - psi + grad_log_part
 
     def estimate_crf_parameters(self, v, psi, model, use_grads=True):
@@ -147,6 +143,4 @@ class TransductiveCrfRegression(object):
 
             cnt_iter += 1
         self.obj, self.u, self.v = best_sol
-
-        print self.v
         return is_converged
