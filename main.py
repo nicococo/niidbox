@@ -1,4 +1,3 @@
-
 def generate_param_set(set_name = 'full'):
     param_flx = [[1000, 0.001], [1000, 0.0001]]
     param_rr = [[0.1], [0.01], [0.001], [0.0001], [0.00001], [0.000001]]
@@ -80,7 +79,7 @@ if __name__ == '__main__':
     parser.add_argument("-f", "--train_frac", help="Fraction of training exms (default=0.75)", default=0.1, type=float)
     parser.add_argument("-d", "--datapoints", help="Amount of data points (default=1000)", default=1000, type=int)
     parser.add_argument("-r", "--reps", help="Number of repetitions (default 10)", default=1, type=int)
-    parser.add_argument("-s", "--method_set", help="Select active method set. (default 'full')", default='lb,rr,tcrfr,tcrfr_indep', type=str)
+    parser.add_argument("-s", "--method_set", help="Select active method set. (default 'full')", default='lb,rr,svr,tcrfr,tcrfr_indep', type=str)
     # grid computing arguments
     parser.add_argument("-p", "--processes", help="Number of processes (default 4)", default=1, type=int)
     parser.add_argument("-l", "--local", help="Run local or distribute? (default True)", default=True, type=bool)
@@ -152,6 +151,7 @@ if __name__ == '__main__':
     measure_names = res[0][1]
     means = np.zeros((len(states), MEASURES*len(methods)))
     stds = np.zeros((len(states), MEASURES*len(methods)))
+
     print names
     print res[0][1]
     for key in mse.iterkeys():
@@ -161,7 +161,7 @@ if __name__ == '__main__':
         print 'STD ', np.std(mse[key], axis=0).tolist()
 
     # save results
-    np.savez('res_toy_{0}.npz'.format(states), MEASURES=MEASURES, methods=methods, params=params, means=means, stds=stds, states=states,
-             measure_names=measure_names, names=names)
+    np.savez('res_toy_{0}.npz'.format(states), MEASURES=MEASURES, methods=methods, params=params,
+             means=means, stds=stds, states=states, measure_names=measure_names, names=names)
     # ..and stop
     print('Finish!')

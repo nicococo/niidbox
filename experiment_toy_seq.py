@@ -1,5 +1,5 @@
-# import matplotlib
-# matplotlib.use('QT4Agg')
+import matplotlib
+matplotlib.use('QT4Agg')
 # change to type 1 fonts!
 # matplotlib.rcParams['pdf.fonttype'] = 42
 # matplotlib.rcParams['ps.fonttype'] = 42
@@ -47,21 +47,11 @@ def get_1d_toy_data(num_exms=300, plot=False):
     z[zx] = 1
 
     # inputs  x
-    # x = 4.0*np.sign(z-0.4)*gx + 2.0*np.sign(z-0.4) + 0.5*np.random.randn(grid_x)
-    # x = 4.0*np.sign(z-0.5)*gx + 0.6*(z+1.)*np.random.randn(grid_x)
     x = 1.2*np.sign(z-0.5)*gx + 0.4*np.random.randn(grid_x)
-    # x = 1.8*(z-0.5)*gx+1.0*np.random.randn(grid_x)
-    # x = 4.0*np.sign(z-0.5)*gx + 1.0*np.sign(z-0.5) + 0.8*np.random.randn(grid_x)
-    # x = 8.0*gx + 0.4*np.random.randn(grid_xn)
-    # x = 1.0*gx*gx + 0.1*np.random.randn(grid_x)
 
     # ..and corresponding target value y
-    # y = -20.*z + x*(6.*z+1.) + 0.01*np.random.randn(grid_x)
-    # y = -20.*z + x*(1.*z+1.) + 0.25*np.random.randn(grid_x)
-    # y = -20.*z + x*(6.*z+1.) + 0.3*np.random.randn(grid_x)
     y = 4.*z + x*(6.*z+1.) + 0.01*np.random.randn(grid_x)
-    # y = -8*z + x*(6.*z) + 0.001*np.random.randn(grid_x)
-    # y = 0.6*z + 1.2*gx*(z-1.) + 0.01*np.random.randn(grid_x)
+    # y = 4.*z + x*(6.*z+1.) + 0.25*np.random.randn(grid_x)
 
     vecX = x.reshape(grid_x, 1)
     vecy = y.reshape(grid_x)
@@ -226,41 +216,47 @@ def method_tcrfr_v2(vecX, vecy, train, test, states=2, params=[0.9, 0.00001, 0.5
     # model = TCrfRIndepModel(data=vecX.T, labels=vecy[train], label_inds=train, unlabeled_inds=test, states=states)
     A = np.zeros((vecX.shape[0], vecX.shape[0]))
     for i in range(vecX.shape[0]-1):
-        if i in train or i+1 in train:
-            A[i, i+1] = 1
-            A[i+1, i] = 1
-        else:
-            A[i, i+1] = 1
-            A[i+1, i] = 1
+        A[i, i+1] = 1
+        A[i+1, i] = 1
+    #
+    # for i in range(vecX.shape[0]-12):
+    #     if i in train or i+12 in train:
+    #         A[i, i+12] = 1
+    #         A[i+12, i] = 1
+    # for i in range(vecX.shape[0]-8):
+    #     if i in train or i+8 in train:
+    #         A[i, i+8] = 1
+    #         A[i+8, i] = 1
 
-    for i in range(vecX.shape[0]-12):
-        if i in train or i+12 in train:
-            A[i, i+12] = 1
-            A[i+12, i] = 1
-    for i in range(vecX.shape[0]-8):
-        if i in train or i+8 in train:
-            A[i, i+8] = 1
-            A[i+8, i] = 1
+    for k in range(1,40):
+        for i in range(vecX.shape[0]-k):
+            if i in train or i+k in train:
+                A[i, i+k] = 1
+                A[i+k, i] = 1
+
     # for i in range(vecX.shape[0]-3):
     #     A[i, i+3] = 1
     #     A[i+3, i] = 1
     # for i in range(vecX.shape[0]-4):
     #     A[i, i+4] = 1
     #     A[i+4, i] = 1
-    for i in range(vecX.shape[0]-4):
-        if i in train:
-            A[i, i+1] = 1
-            A[i+1, i] = 1
-            A[i, i+2] = 1
-            A[i+2, i] = 1
-            A[i, i+3] = 1
-            A[i+3, i] = 1
-            A[i, i+4] = 1
-            A[i+4, i] = 1
+    # for i in range(vecX.shape[0]-4):
+    #     if i in train:
+    #         A[i, i+1] = 1
+    #         A[i+1, i] = 1
+    #         A[i, i+2] = 1
+    #         A[i+2, i] = 1
+    #         A[i, i+3] = 1
+    #         A[i+3, i] = 1
+    #         A[i, i+4] = 1
+    #         A[i+4, i] = 1
 
+    # tcrfr = TCRFR_QP(data=vecX.T, labels=vecy[train], label_inds=train, unlabeled_inds=test, states=states, A=A,
+    #               reg_theta=params[0], reg_lambda=params[1], reg_gamma=params[2]*float(len(train)+len(test)),
+    #               trans_regs=[.1, 0.5], trans_sym=[0])
     tcrfr = TCRFR_Fast(data=vecX.T, labels=vecy[train], label_inds=train, unlabeled_inds=test, states=states, A=A,
                   reg_theta=params[0], reg_lambda=params[1], reg_gamma=params[2]*float(len(train)+len(test)),
-                  trans_regs=[.05, 1.01], trans_sym=[0])
+                  trans_regs=[.1, 0.5], trans_sym=[0])
 
     tcrfr.solution_latent = true_latent
     tcrfr.fit(max_iter=40, use_grads=False)
@@ -321,7 +317,7 @@ def method_lb(vecX, vecy, train, test, states=2, params=[0.0001], true_latent=No
     return 'Lower Bound', preds, np.ones(len(test))
 
 
-def method_svr(vecX, vecy, train, test, states=2, params=[1.0, 0.1, 'linear'], plot=False):
+def method_svr(vecX, vecy, train, test, states=2, params=[1.0, 0.1, 'linear'], true_latent=None, plot=False):
     # train ordinary support vector regression
     if len(params) == 3:
         clf = SVR(C=params[0], epsilon=params[1], kernel=params[2], shrinking=False)
@@ -524,9 +520,14 @@ def main_run(methods, params, vecX, vecy, vecz, train_frac, val_frac, states, pl
     print 'Fraction             :', train_frac
     print 'Max States           :', states
     print('------------------------------------------')
-    print ''.ljust(45), ': ', res[0][1]
+    print ''.ljust(44), ': ', res[0][1]
     for m in range(len(names)):
-        print names[m].ljust(45), ': ', res[m][0].tolist()
+        ll = res[m][0].tolist()
+        name = names[m].ljust(45)
+        for i in range(len(ll)):
+            name += '    {0:+3.4f}'.format(ll[i]).ljust(24)
+        print name
+
     print('------------------------------------------')
     return names, res
 
