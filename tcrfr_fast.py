@@ -16,7 +16,7 @@ class TCRFR_Fast(AbstractTCRFR):
     sol_dot_psi = None
 
     def __init__(self, data, labels, label_inds, unlabeled_inds, states, A,
-                 reg_theta=0.5, reg_lambda=0.001, reg_gamma=1.0, trans_regs=[1.0, 1.0], trans_sym=[1]):
+                 reg_theta=0.5, reg_lambda=0.001, reg_gamma=1.0, trans_regs=[1.0, 1.0], trans_sym=[1], lbl_weight=1.0):
         AbstractTCRFR.__init__(self, data, labels, label_inds, unlabeled_inds, states, A,
                  reg_theta, reg_lambda, reg_gamma, trans_regs, trans_sym)
 
@@ -24,7 +24,7 @@ class TCRFR_Fast(AbstractTCRFR):
         for ind in self.V:
             for i in range(self.N[ind, :].size):
                 if self.N[ind, i] in self.label_inds and self.N_weights[ind, i]>0.00001:
-                    self.N_weights[ind, i] = 20.0
+                    self.N_weights[ind, i] = lbl_weight
 
 
     def map_inference(self, u, vn):
