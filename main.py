@@ -18,7 +18,12 @@ def generate_param_set(set_name = 'full'):
     tcrfr_lambda = [0.000001]
     tcrfr_gamma = [100.0]
     tcrfr_k1 = [8, 20, 30]
-    tcrfr_k2 = [4, 8, 12]
+
+    tcrfr_k1 = [30] # 5%
+    tcrfr_k1 = [30] # 10%
+
+    tcrfr_k2 = [4]  # 20%
+    tcrfr_k2 = [18] # 5%
 
     tcrfr_neighb = [10.]
 
@@ -86,7 +91,7 @@ if __name__ == '__main__':
     # experiment arguments
     parser.add_argument("-m", "--max_states", help="Max state for testing (default=3).", default=3, type=int)
     parser.add_argument("-f", "--train_frac", help="Fraction of training exms (default=0.75)", default=0.1, type=float)
-    parser.add_argument("-d", "--datapoints", help="Amount of data points (default=1000)", default=800, type=int)
+    parser.add_argument("-d", "--datapoints", help="Amount of data points (default=1000)", default=1000, type=int)
     parser.add_argument("-r", "--reps", help="Number of repetitions (default 10)", default=1, type=int)
     parser.add_argument("-s", "--method_set", help="Select active method set. (default 'full')", default='lb,rr,svr,tcrfr_pl', type=str)
     # grid computing arguments

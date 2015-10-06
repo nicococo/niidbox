@@ -93,16 +93,17 @@ class AbstractTCRFR(object):
         n_sym_mtx = np.sum(self.trans_sym)
         self.trans_total_dims = np.int(n_sym_mtx * self.trans_d_sym + (self.trans_n - n_sym_mtx) * self.trans_d_full)
 
-        # construct edges-, vertices- and neighbors-set
-        self.E = []
-        self.V = []
+        # construct edge matrix
+        num_edges = int((matrix(1.0, (1,A.size[0]))*A*matrix(1.0, (A.size[0],1)))[0]/2)
+        self.V = range(verts)
+        idx = 0
+        self.E = np.zeros((num_edges, 2), dtype=np.int)
         for s in range(verts):
-            self.V.append(s)
-            nl = []
-            for n in range(verts):
+            for n in range(s, verts):
                 if A[s, n] > 0:
-                    if not [n, s] in self.E:
-                        self.E.append([s, n])  # add an edge between node s and n
+                    self.E[idx, :] = (s, n)
+                    idx += 1
+
 
         # neighbor list for all vertices
         max_conn = max(A*matrix(1.0, (A.size[0],1)))

@@ -214,7 +214,7 @@ def method_tcrfr(vecX, vecy, train, test, states=2, params=[0.9, 0.00001, 0.5], 
 
 def method_tcrfr_qp(vecX, vecy, train, test, states=2, params=[0.9, 0.00001, 0.5, 10], true_latent=None, plot=False):
     # model = TCrfRIndepModel(data=vecX.T, labels=vecy[train], label_inds=train, unlabeled_inds=test, states=states)
-    A = np.zeros((vecX.shape[0], vecX.shape[0]))
+    A = co.spmatrix(0.0, range(vecX.shape[0]), range(vecX.shape[0]))
     for i in range(vecX.shape[0]-1):
         A[i, i+1] = 1
         A[i+1, i] = 1
@@ -226,7 +226,7 @@ def method_tcrfr_qp(vecX, vecy, train, test, states=2, params=[0.9, 0.00001, 0.5
 
     tcrfr = TCRFR_QP(data=vecX.T, labels=vecy[train], label_inds=train, unlabeled_inds=test, states=states, A=A,
                   reg_theta=params[0], reg_lambda=params[1], reg_gamma=params[2]*float(len(train)+len(test)),
-                  trans_regs=[.1, 0.5], trans_sym=[0])
+                  trans_regs=[.05, 0.5], trans_sym=[0])
 
     tcrfr.fit(max_iter=20, use_grads=False)
     y_preds, lats = tcrfr.predict()

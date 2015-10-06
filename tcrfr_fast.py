@@ -15,6 +15,8 @@ class TCRFR_Fast(AbstractTCRFR):
     phis = None  # copy of the current joint feature map, corresponding to self.latent
     sol_dot_psi = None
 
+    fix_lbl_map = False  # fix the labeled data in the inference (only infer once after calling map_inference)?
+
     def __init__(self, data, labels, label_inds, unlabeled_inds, states, A,
                  reg_theta=0.5, reg_lambda=0.001, reg_gamma=1.0, trans_regs=[1.0, 1.0], trans_sym=[1], lbl_weight=1.0):
         AbstractTCRFR.__init__(self, data, labels, label_inds, unlabeled_inds, states, A,
@@ -44,9 +46,12 @@ class TCRFR_Fast(AbstractTCRFR):
             self.latent_prev = self.latent.copy()
         self.latent = np.argmax(map_objs, axis=0)
 
+        iter = 0
+        change = 1.0
+        max_iter = 10
         lats = self.latent.copy()
         map_objs_bak = map_objs.copy()
-        for i in range(4):
+        while change>0.001 and iter<max_iter:
 
             yn = lats[self.N]
             for s in range(self.S):
@@ -56,13 +61,17 @@ class TCRFR_Fast(AbstractTCRFR):
                     add += vn[self.trans_mtx2vec_full[s, s2]]*n_cnts
                 map_objs[s, :] += add
 
-            # lats_b = np.argmax(map_objs[:, self.unlabeled_inds], axis=0)
-            # print np.sum(lats!=lats_b)/float(lats.size)
-            # lats[self.unlabeled_inds] = lats_b
+            if self.fix_lbl_map:
+                lats_b = np.argmax(map_objs[:, self.unlabeled_inds], axis=0)
+                change = np.sum(lats!=lats_b)/float(lats.size)
+                lats[self.unlabeled_inds] = lats_b
+            else:
+                lats_b = np.argmax(map_objs, axis=0)
+                change = np.sum(lats!=lats_b)/float(lats.size)
+                lats = lats_b
 
-            lats_b = np.argmax(map_objs, axis=0)
-            print np.sum(lats!=lats_b)/float(lats.size)
-            lats = lats_b
+            iter += 1
+            print "(", iter, "): ", change
             map_objs = map_objs_bak.copy()
 
         # highest value first
