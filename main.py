@@ -8,16 +8,18 @@ def generate_param_set(set_name = 'full'):
         for j in range(len(param_rr)):
             for k in range(len(param_rr)):
                 param_tr.append([param_rr[i][0], 100.*param_rr[j][0], 100.*param_rr[k][0]])
+
     param_tcrfr_indep = list()
     param_tcrfr = list()
-    tcrfr_theta = [0.9]
-    tcrfr_lambda = [0.000001]
-    tcrfr_gamma = [0.5, 1.]
-    tcrfr_neighb = [10., 100.]
+    param_tcrfr_qp = list()
+    param_tcrfr_pl = list()
 
     tcrfr_theta = [0.85]
     tcrfr_lambda = [0.000001]
     tcrfr_gamma = [100.0]
+    tcrfr_k1 = [8, 20, 30]
+    tcrfr_k2 = [4, 8, 12]
+
     tcrfr_neighb = [10.]
 
     for i in range(len(tcrfr_theta)):
@@ -26,6 +28,10 @@ def generate_param_set(set_name = 'full'):
                 param_tcrfr.append([tcrfr_theta[i], tcrfr_lambda[j], tcrfr_gamma[k]])
                 for l in range(len(tcrfr_neighb)):
                     param_tcrfr_indep.append([tcrfr_theta[i], tcrfr_lambda[j], tcrfr_gamma[k], tcrfr_neighb[l]])
+                for l in range(len(tcrfr_k1)):
+                    param_tcrfr_pl.append([tcrfr_theta[i], tcrfr_lambda[j], tcrfr_gamma[k], tcrfr_k1[l]])
+                for l in range(len(tcrfr_k2)):
+                    param_tcrfr_qp.append([tcrfr_theta[i], tcrfr_lambda[j], tcrfr_gamma[k], tcrfr_k2[l]])
 
     params = []
     methods = []
@@ -34,9 +40,12 @@ def generate_param_set(set_name = 'full'):
         methods = [method_rr, method_svr, method_krr,
                    method_transductive_regression, method_flexmix,
                    method_tcrfr_indep, method_tcrfr]
-    if 'tcrfr' in set_name:
-        methods.append(method_tcrfr_v2)
-        params.append(param_tcrfr)
+    if 'tcrfr_qp' in set_name:
+        methods.append(method_tcrfr_qp)
+        params.append(param_tcrfr_qp)
+    if 'tcrfr_pl' in set_name:
+        methods.append(method_tcrfr_pl)
+        params.append(param_tcrfr_pl)
     if 'tcrfr_indep' in set_name:
         methods.append(method_tcrfr_indep)
         params.append(param_tcrfr_indep)
@@ -76,10 +85,10 @@ if __name__ == '__main__':
     parser.add_argument("-b", "--results_filename", help="Set results filename (default='res_toy_[1, 2, 3, 4, 5].npz').", default='res_toy_[1, 2, 3, 4, 5].npz', type=str)
     # experiment arguments
     parser.add_argument("-m", "--max_states", help="Max state for testing (default=3).", default=3, type=int)
-    parser.add_argument("-f", "--train_frac", help="Fraction of training exms (default=0.75)", default=0.05, type=float)
-    parser.add_argument("-d", "--datapoints", help="Amount of data points (default=1000)", default=1000, type=int)
+    parser.add_argument("-f", "--train_frac", help="Fraction of training exms (default=0.75)", default=0.1, type=float)
+    parser.add_argument("-d", "--datapoints", help="Amount of data points (default=1000)", default=800, type=int)
     parser.add_argument("-r", "--reps", help="Number of repetitions (default 10)", default=1, type=int)
-    parser.add_argument("-s", "--method_set", help="Select active method set. (default 'full')", default='lb,rr,svr,tcrfr,tcrfr_indep', type=str)
+    parser.add_argument("-s", "--method_set", help="Select active method set. (default 'full')", default='lb,rr,svr,tcrfr_pl', type=str)
     # grid computing arguments
     parser.add_argument("-p", "--processes", help="Number of processes (default 4)", default=1, type=int)
     parser.add_argument("-l", "--local", help="Run local or distribute? (default True)", default=True, type=bool)

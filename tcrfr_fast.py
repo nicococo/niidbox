@@ -46,7 +46,7 @@ class TCRFR_Fast(AbstractTCRFR):
 
         lats = self.latent.copy()
         map_objs_bak = map_objs.copy()
-        for i in range(1):
+        for i in range(4):
 
             yn = lats[self.N]
             for s in range(self.S):
@@ -56,9 +56,13 @@ class TCRFR_Fast(AbstractTCRFR):
                     add += vn[self.trans_mtx2vec_full[s, s2]]*n_cnts
                 map_objs[s, :] += add
 
-            lats_b = np.argmax(map_objs[:, self.unlabeled_inds], axis=0)
+            # lats_b = np.argmax(map_objs[:, self.unlabeled_inds], axis=0)
+            # print np.sum(lats!=lats_b)/float(lats.size)
+            # lats[self.unlabeled_inds] = lats_b
+
+            lats_b = np.argmax(map_objs, axis=0)
             print np.sum(lats!=lats_b)/float(lats.size)
-            lats[self.unlabeled_inds] = lats_b
+            lats = lats_b
             map_objs = map_objs_bak.copy()
 
         # highest value first

@@ -212,54 +212,23 @@ def method_tcrfr(vecX, vecy, train, test, states=2, params=[0.9, 0.00001, 0.5], 
     return 'TCRFR (Pairwise Potentials)', y_preds, lats
 
 
-def method_tcrfr_v2(vecX, vecy, train, test, states=2, params=[0.9, 0.00001, 0.5], true_latent=None, plot=False):
+def method_tcrfr_qp(vecX, vecy, train, test, states=2, params=[0.9, 0.00001, 0.5, 10], true_latent=None, plot=False):
     # model = TCrfRIndepModel(data=vecX.T, labels=vecy[train], label_inds=train, unlabeled_inds=test, states=states)
     A = np.zeros((vecX.shape[0], vecX.shape[0]))
     for i in range(vecX.shape[0]-1):
         A[i, i+1] = 1
         A[i+1, i] = 1
-    #
-    # for i in range(vecX.shape[0]-12):
-    #     if i in train or i+12 in train:
-    #         A[i, i+12] = 1
-    #         A[i+12, i] = 1
-    # for i in range(vecX.shape[0]-8):
-    #     if i in train or i+8 in train:
-    #         A[i, i+8] = 1
-    #         A[i+8, i] = 1
-
-    for k in range(1,40):
+    for k in range(1,  params[3]):
         for i in range(vecX.shape[0]-k):
             if i in train or i+k in train:
                 A[i, i+k] = 1
                 A[i+k, i] = 1
 
-    # for i in range(vecX.shape[0]-3):
-    #     A[i, i+3] = 1
-    #     A[i+3, i] = 1
-    # for i in range(vecX.shape[0]-4):
-    #     A[i, i+4] = 1
-    #     A[i+4, i] = 1
-    # for i in range(vecX.shape[0]-4):
-    #     if i in train:
-    #         A[i, i+1] = 1
-    #         A[i+1, i] = 1
-    #         A[i, i+2] = 1
-    #         A[i+2, i] = 1
-    #         A[i, i+3] = 1
-    #         A[i+3, i] = 1
-    #         A[i, i+4] = 1
-    #         A[i+4, i] = 1
-
     tcrfr = TCRFR_QP(data=vecX.T, labels=vecy[train], label_inds=train, unlabeled_inds=test, states=states, A=A,
                   reg_theta=params[0], reg_lambda=params[1], reg_gamma=params[2]*float(len(train)+len(test)),
                   trans_regs=[.1, 0.5], trans_sym=[0])
-    # tcrfr = TCRFR_Fast(data=vecX.T, labels=vecy[train], label_inds=train, unlabeled_inds=test, states=states, A=A,
-    #               reg_theta=params[0], reg_lambda=params[1], reg_gamma=params[2]*float(len(train)+len(test)),
-    #               trans_regs=[.01, 0.5], trans_sym=[0], lbl_weight=1.0)
 
-    tcrfr.solution_latent = true_latent
-    tcrfr.fit(max_iter=40, use_grads=False)
+    tcrfr.fit(max_iter=20, use_grads=False)
     y_preds, lats = tcrfr.predict()
     print lats
 
@@ -283,7 +252,49 @@ def method_tcrfr_v2(vecX, vecy, train, test, states=2, params=[0.9, 0.00001, 0.5
 
         plt.show()
 
-    return 'TCRFR (Pairwise Potentials)', y_preds[test], lats[test]
+    return 'TCRFR-QP', y_preds[test], lats[test]
+
+
+def method_tcrfr_pl(vecX, vecy, train, test, states=2, params=[0.9, 0.00001, 0.5, 10], true_latent=None, plot=False):
+    A = co.spmatrix(0.0, range(vecX.shape[0]), range(vecX.shape[0]))
+    for i in range(vecX.shape[0]-1):
+        A[i, i+1] = 1
+        A[i+1, i] = 1
+    for k in range(1, params[3]):
+        for i in range(vecX.shape[0]-k):
+            if i in train or i+k in train:
+                A[i, i+k] = 1
+                A[i+k, i] = 1
+
+    tcrfr = TCRFR_Fast(data=vecX.T, labels=vecy[train], label_inds=train, unlabeled_inds=test, states=states, A=A,
+                  reg_theta=params[0], reg_lambda=params[1], reg_gamma=params[2]*float(len(train)+len(test)),
+                  trans_regs=[.01, 0.5], trans_sym=[0], lbl_weight=1.0)
+
+    tcrfr.fit(max_iter=20, use_grads=False)
+    y_preds, lats = tcrfr.predict()
+    print lats
+
+    if plot:
+        plt.figure(1)
+        plt.subplot(1, 2, 1)
+        plt.plot(vecX[:, 0], vecy, '.g', alpha=0.1, markersize=10.0)
+        plt.plot(vecX[test, 0], vecy[test], 'or', alpha=0.6, markersize=10.0)
+        plt.plot(vecX[test, 0], y_preds[test], 'oc', alpha=0.6, markersize=6.0)
+        plt.plot(vecX[test, 0], lats[test], 'ob', alpha=0.6, markersize=6.0)
+
+        plt.subplot(1, 2, 2)
+        plt.plot(vecX[train, 0], vecy[train], 'or', alpha=0.6, markersize=10.0)
+        plt.plot(vecX[train, 0], lats[train], 'ob', alpha=0.6, markersize=6.0)
+        plt.plot(vecX[train, 0], y_preds[train], 'xg', alpha=0.8, markersize=10.0)
+
+        print('Test performance: ')
+        print evaluate(vecy[test], y_preds[test], true_latent[test], lats[test])
+        print('Training performance: ')
+        print evaluate(vecy[train], y_preds[train], true_latent[train], lats[train])
+
+        plt.show()
+
+    return 'TCRFR-PL', y_preds[test], lats[test]
 
 
 def method_rr(vecX, vecy, train, test, states=2, params=[0.0001], true_latent=None, plot=False):
@@ -385,7 +396,7 @@ def method_tcrfr_indep(vecX, vecy, train, test, states=2, params=[0.9, 0.00001, 
     return 'TCRFR (Indep)', y_preds, lats
 
 
-def method_flexmix(vecX, vecy, train, test, states=2, params=[200, 0.001], plot=False):
+def method_flexmix(vecX, vecy, train, test, states=2, params=[200, 0.001], true_latent=None, plot=False):
     # Use latent class regression FlexMix package from R
     import rpy2.robjects as robjects
     import pandas.rpy.common as com

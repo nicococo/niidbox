@@ -64,10 +64,10 @@ class AbstractTCRFR(object):
                  reg_theta=0.5, reg_lambda=0.001, reg_gamma=1.0, trans_regs=[1.0], trans_sym=[1]):
         # sparse connectivity matrix (numbers indicate the type of connection = id of transition matrix)
         self.A = A
-        (verts, foo) = A.shape
+        (verts, foo) = A.size
 
         # transition types
-        self.trans_n = np.int(np.max(A))
+        self.trans_n = np.int(max(A))
 
         # number of states that is used for all transition/emission matrices
         self.S = states
@@ -105,11 +105,13 @@ class AbstractTCRFR(object):
                         self.E.append([s, n])  # add an edge between node s and n
 
         # neighbor list for all vertices
-        max_conn = np.max(np.sum(A, axis=0))
+        max_conn = max(A*matrix(1.0, (A.size[0],1)))
+
+        print max_conn
         self.N = np.zeros((len(self.V), max_conn), dtype='i')
         self.N_weights = np.ones((len(self.V), max_conn), dtype='i')
         for ind in self.V:
-            ninds = np.where(A[ind, :] >= 1)[0]
+            ninds = np.where(np.array(matrix(A[ind, :]), dtype='i').reshape(A.size[0]) >= 1)[0]
             lens = ninds.size
             self.N[ind, :lens] = ninds
             if lens < max_conn:
@@ -160,14 +162,14 @@ class AbstractTCRFR(object):
         print('- Lambda        : {0}'.format(self.reg_lambda))
         print('- Gamma         : {0}'.format(self.reg_gamma))
         print('- Theta         : {0}'.format(self.reg_theta))
-        print('- Q_regs     l  : {0}'.format(self.trans_regs))
+        print('- Q_regs        : {0}'.format(self.trans_regs))
         print('-------------------------------')
         print('- Edges         : {0}'.format(len(self.E)))
         print('- States        : {0}'.format(self.S))
         print('- Trans-types   : {0}'.format(self.trans_n))
         print('- Trans-Sym     : {0}'.format(self.trans_sym))
-        print('-------------------------------')
-        print('- Trans-Sym V2V : \n{0}'.format(self.trans_vec2vec_mtx))
+        # print('-------------------------------')
+        # print('- Trans-Sym V2V : \n{0}'.format(self.trans_vec2vec_mtx))
         print('===============================')
         print('')
 
