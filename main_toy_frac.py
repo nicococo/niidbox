@@ -74,7 +74,7 @@ if __name__ == '__main__':
                 mse[train_frac] = np.zeros((REPS, MEASURES*len(methods)))
             for n in range(REPS):
                 job = Job(main_run, [methods, params, vecX, vecy, vecz, train_frac, 0.1, states, False],
-                          mem_max='2G', mem_free='4G', name='TCRFR it({0}) frac({1})'.format(n, train_frac))
+                          mem_max='1G', mem_free='1G', name='TCRFR it({0}) frac({1})'.format(n, train_frac))
                 jobs.append(job)
                 sn_map[cnt] = (train_frac, n)
                 cnt += 1
