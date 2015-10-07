@@ -1,10 +1,3 @@
-import matplotlib
-matplotlib.use('QT4Agg')
-# change to type 1 fonts!
-# matplotlib.rcParams['pdf.fonttype'] = 42
-# matplotlib.rcParams['ps.fonttype'] = 42
-import matplotlib.pyplot as plt
-
 import numpy as np
 import cvxopt as co
 import scipy.sparse as sparse
@@ -20,6 +13,8 @@ from tcrfr_fast import TCRFR_Fast
 from tcrf_regression import TransductiveCrfRegression
 from tcrfr_indep_model import TCrfRIndepModel
 from tcrfr_pair_model import TCrfRPairwisePotentialModel
+
+import matplotlib.pyplot as plt
 
 
 def fit_ridge_regression(lam, vecX, vecy):
@@ -51,7 +46,7 @@ def get_1d_toy_data(num_exms=300, plot=False):
 
     # ..and corresponding target value y
     y = 4.*z + x*(6.*z+1.) + 0.01*np.random.randn(grid_x)
-    # y = 4.*z + x*(6.*z+1.) + 0.25*np.random.randn(grid_x)
+    y = 4.*z + x*(6.*z+1.) + 0.1*np.random.randn(grid_x)
 
     vecX = x.reshape(grid_x, 1)
     vecy = y.reshape(grid_x)
@@ -128,7 +123,7 @@ def evaluate(truth, preds, true_lats, lats):
     return np.array(errs), names
 
 
-def method_transductive_regression(vecX, vecy, train, test, states=2, params=[0.0001, 0.7, 0.3], plot=False):
+def method_transductive_regression(vecX, vecy, train, test, states=2, params=[0.0001, 0.7, 0.3], true_latent=None, plot=False):
     # OLS solution
     # vecX in (samples x dims)
     # vecy in (samples)
@@ -338,7 +333,7 @@ def method_svr(vecX, vecy, train, test, states=2, params=[1.0, 0.1, 'linear'], t
     return 'Support Vector Regression', clf.predict(vecX[test, :]), np.ones(len(test))
 
 
-def method_krr(vecX, vecy, train, test, states=2, params=[0.0001], plot=False):
+def method_krr(vecX, vecy, train, test, states=2, params=[0.0001], true_latent=None, plot=False):
     feats = vecX.shape[1]
     kmeans = cl.KMeans(n_clusters=states, init='random', n_init=10, max_iter=100, tol=0.0001)
     kmeans.fit(vecX[train, :])
@@ -397,63 +392,62 @@ def method_tcrfr_indep(vecX, vecy, train, test, states=2, params=[0.9, 0.00001, 
 
 
 def method_flexmix(vecX, vecy, train, test, states=2, params=[200, 0.001], true_latent=None, plot=False):
-    # Use latent class regression FlexMix package from R
+    my_const = 20.0
+    new_vecy = vecy.copy() / my_const
+
+    # Use the mixture of regressions FlexMix package from R
     import rpy2.robjects as robjects
-    import pandas.rpy.common as com
+    from rpy2.robjects import pandas2ri
+    pandas2ri.activate()
     import pandas as pd
+
     r = robjects.r
     r.library("flexmix")
 
     feats = vecX.shape[1]-1
-    train_data = np.hstack((vecX[train, 0:feats], vecy[train].reshape(-1, 1)))
+    train_data = np.hstack((vecX[train, 0:feats], new_vecy[train].reshape(-1, 1)))
     df_train = pd.DataFrame(train_data)
     colnames = []
     for i in range(feats):
         colnames.append(str(i))
     colnames.append('y')
     df_train.columns = colnames
-    df_train_r = com.convert_to_r_dataframe(df_train)
 
-    r('''
-        parms = list(iter=''' + str(params[0]) + ''', tol=''' + str(params[1]) + ''',class="CEM")
-        as(parms, "FLXcontrol")
-    ''')
-    model = r.flexmix(robjects.Formula("y ~ ."), data=df_train_r, k=states)
-
-    test_data = np.hstack((vecX[test, 0:feats], 1000.*np.random.randn(len(test)).reshape(-1, 1)))
-    df_test = pd.DataFrame(test_data)
+    df_test = pd.DataFrame(vecX[test, 0:feats])
     colnames = []
     for i in range(feats):
         colnames.append(str(i))
-    colnames.append('y')
     df_test.columns = colnames
-    df_test_r = com.convert_to_r_dataframe(df_test)
 
-    pr = r.predict(model, newdata=df_test_r, aggregate=False)
-    df = com.convert_robj(pr)
-    s = pd.Series(df)
-    aux = s.values
-    dim = aux.shape[0]
-    y_pred = np.zeros((len(vecy[test]), dim))
+    # Fit the model
+    r('''
+        rparms = list(iter=''' + str(params[0]) + ''', tol=''' + str(params[1]) + ''',class="CEM")
+        as(rparms, "FLXcontrol")
+    ''')
 
-    lats = np.zeros((vecy.shape[0], 1), dtype=int)
-    lats_pred = np.array(r.clusters(model, newdata=df_test_r)).reshape(-1, 1)
+    model = r.flexmix(robjects.Formula("y ~ ."), data=df_train, k=states)
 
-    for i in range(dim):
-        y_pred[:, i] = np.copy(aux[i]).reshape(1, -1)
-    y_pred_flx = np.zeros(len(vecy[test]))
-    for i in range(len(y_pred_flx)):
-        y_pred_flx[i] = y_pred[i, lats_pred[i]-1]
+    # Predict
+    pr = r.predict(model, newdata=df_test, aggregate=True)
+    y_pred = r.unlist(pr)
+    y_pred_flx = np.array(y_pred).reshape(-1,1)
+
+    lats = np.zeros((new_vecy.shape[0], 1), dtype=int)
+    lats[train] = np.array(r.clusters(model)).reshape(-1, 1)
+    lats_pred = np.zeros(len(new_vecy[test])).reshape(-1, 1)
+    # sys.stdout.flush()
+    lats[test] = lats_pred
 
     if plot:
         plt.figure(1)
         plt.subplot(1, 2, 1)
-        plt.plot(vecX[:, 0], vecy, '.g', alpha=0.1, markersize=10.0)
-        plt.plot(vecX[test, 0], vecy[test], 'or', alpha=0.6, markersize=10.0)
+        plt.plot(vecX[:, 0], new_vecy, '.g', alpha=0.1, markersize=10.0)
+        plt.plot(vecX[test, 0], new_vecy[test], 'or', alpha=0.6, markersize=10.0)
         plt.plot(vecX[test, 0], y_pred_flx, 'oc', alpha=0.6, markersize=6.0)
         plt.plot(vecX[test, 0], lats[test], 'ob', alpha=0.6, markersize=6.0)
         plt.show()
-    return 'FlexMix', np.array(y_pred_flx), np.reshape(lats_pred, newshape=lats_pred.size)
+
+    return 'FlexMix', y_pred_flx*my_const, np.reshape(lats_pred, newshape=lats_pred.size)
 
 
 def main_run(methods, params, vecX, vecy, vecz, train_frac, val_frac, states, plot):
@@ -471,8 +465,8 @@ def main_run(methods, params, vecX, vecy, vecz, train_frac, val_frac, states, pl
     # generate training samples
     samples = vecX.shape[0]
     inds = np.random.permutation(range(samples))
-    train_nums = np.floor(samples*train_frac)
-    val_nums = np.floor(samples*val_frac)
+    val_nums = np.floor(samples*train_frac*val_frac)
+    train_nums = np.floor(samples*train_frac-val_nums)
     train = inds[:train_nums]
     test = inds[train_nums:]
 
@@ -493,28 +487,36 @@ def main_run(methods, params, vecX, vecy, vecz, train_frac, val_frac, states, pl
     fmts = ['8c', '1m', '2g', '*y', '4k', 'ob', '.r']
     for m in range(len(methods)):
         val_error = 1e14
-        pred = None
-        lats = None
         best_param = None
-        for p in params[m]:
-            print('Testing parameters {0} for method {1}'.format(p, methods[m]))
-            (name, _pred, _lats) = methods[m](np.array(vecX, copy=True), np.array(vecy, copy=True),
-                                            np.array(train, copy=True), np.array(test, copy=True),
-                                            states=states, params=p, true_latent=vecz, plot=False)
-            eval_val, _ = evaluate(vecy[test[:val_nums]], _pred[:val_nums], vecz[test[:val_nums]], _lats[:val_nums])
-            if eval_val[1] < val_error:
-                pred = _pred
-                lats = _lats
-                best_param = p
+        # only use train-validate step if there actually more than 1 parameter settings
+        print params[m]
+        if len(params[m]) > 1:
+            for p in params[m]:
+                # 1. only training examples are labeled and test performance only on validation data
+                print('Train-validate parameters {0} for method {1}'.format(p, methods[m]))
+                (name, _pred, _lats) = methods[m](np.array(vecX, copy=True), np.array(vecy, copy=True),
+                                                np.array(train, copy=True), np.array(test, copy=True),
+                                                states=states, params=p, true_latent=vecz, plot=False)
+                eval_val, _ = evaluate(vecy[test[:val_nums]], _pred[:val_nums], vecz[test[:val_nums]], _lats[:val_nums])
+                if eval_val[1] < val_error:
+                    best_param = p
+        else:
+            print("No Train-validation step for method {0}.".format(methods[m]))
+            best_param = params[m][0]
 
+        # 2. Using the best parameter to train on training+validation data but test only on test data
+        print('Test parameters {0} for method {1}'.format(best_param, methods[m]))
+        tst_train_nums = np.floor(samples*train_frac)
+        tst_train = inds[:tst_train_nums]
+        tst_test = inds[tst_train_nums:]
+        (name, pred, lats) = methods[m](np.array(vecX, copy=True), np.array(vecy, copy=True),
+                                        np.array(tst_train, copy=True), np.array(tst_test, copy=True),
+                                        states=states, params=best_param, true_latent=vecz, plot=False)
+        res.append(evaluate(vecy[tst_test], pred, vecz[tst_test], lats))
         names.append(name)
-        print name
-        print 'Best param = ', best_param
-        res.append(evaluate(vecy[test[val_nums:]], pred[val_nums:], vecz[test[val_nums:]], lats[val_nums:]))
-        # res.append(evaluate(vecy[test], pred, vecz[test], lats))
         if plot:
             plt.figure(1)
-            plt.plot(vecX[test[val_nums:], 0], pred[val_nums:], fmts[m], alpha=0.8, markersize=10.0)
+            plt.plot(vecX[tst_test, 0], pred, fmts[m], alpha=0.8, markersize=10.0)
 
     if plot:
         plt_names = ['Datapoints']
@@ -527,18 +529,19 @@ def main_run(methods, params, vecX, vecy, vecz, train_frac, val_frac, states, pl
     print('------------------------------------------')
     print 'Total data           :', len(train)+len(test)
     print 'Labeled data (train) :', len(train)
-    print 'Unlabeled data (test):', len(test)
-    print 'Fraction             :', train_frac
+    print 'Unlabeled data (val) :', val_nums
+    print 'Unlabeled data (test):', len(test)-val_nums
+    print 'Fraction train       :', train_frac
+    print 'Fraction val         :', val_frac
     print 'Max States           :', states
     print('------------------------------------------')
-    print ''.ljust(44), ': ', res[0][1]
+    print ''.ljust(44), '', res[0][1]
     for m in range(len(names)):
         ll = res[m][0].tolist()
         name = names[m].ljust(45)
         for i in range(len(ll)):
             name += '    {0:+3.4f}'.format(ll[i]).ljust(24)
         print name
-
     print('------------------------------------------')
     return names, res
 
@@ -550,7 +553,7 @@ def plot_results(name):
     states = f['states']
     methods = f['methods']
     names = f['names']
-    measures = f['measures']
+    measures = f['MEASURES']
 
     plt.figure(1)
     cnt = 0
@@ -566,5 +569,6 @@ def plot_results(name):
         plt.ylabel(f['measure_names'][i], fontsize=20)
         plt.xlim([1, states[-1]])
         if i == measures-1:
-            plt.legend(names, loc=4, fontsize=18)
+           plt.legend(names, loc=4, fontsize=18)
     plt.show()
+    print "DONE"

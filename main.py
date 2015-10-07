@@ -1,3 +1,17 @@
+# import matplotlib
+# import matplotlib.rcsetup as rcsetup
+# print(rcsetup.all_backends)
+# #
+# matplotlib.use('MacOSX')
+# # change to type 1 fonts!
+# matplotlib.rcParams['pdf.fonttype'] = 42
+# matplotlib.rcParams['ps.fonttype'] = 42
+
+import argparse, sys
+from experiment_toy_seq import *
+from gridmap import Job, process_jobs
+import logging
+
 def generate_param_set(set_name = 'full'):
     param_flx = [[1000, 0.001], [1000, 0.0001]]
     param_rr = [[0.1], [0.01], [0.001], [0.0001], [0.00001], [0.000001]]
@@ -21,9 +35,13 @@ def generate_param_set(set_name = 'full'):
 
     tcrfr_k1 = [30] # 5%
     tcrfr_k1 = [30] # 10%
+    tcrfr_k1 = [15, 30]
+    tcrfr_k1 = [4, 8] # 20%
 
     tcrfr_k2 = [4]  # 20%
     tcrfr_k2 = [18] # 5%
+    tcrfr_k2 = [4] # 5%
+    tcrfr_k2 = [4, 8] # 20%
 
     tcrfr_neighb = [10.]
 
@@ -76,10 +94,6 @@ def generate_param_set(set_name = 'full'):
 
 
 if __name__ == '__main__':
-    import argparse, sys
-    from gridmap import Job, process_jobs
-    from experiment_toy_seq import *
-    import logging
     logging.captureWarnings(True)
     logging.basicConfig(format=('%(asctime)s - %(name)s - %(levelname)s - ' +
                                 '%(message)s'), level=logging.INFO)
@@ -87,13 +101,13 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     # plot results arguments
     parser.add_argument("-a", "--plot_results", help="Show results plot (default=False).", default=False, type=bool)
-    parser.add_argument("-b", "--results_filename", help="Set results filename (default='res_toy_[1, 2, 3, 4, 5].npz').", default='res_toy_[1, 2, 3, 4, 5].npz', type=str)
+    parser.add_argument("-b", "--results_filename", help="Set results filename (default='res_toy_[1, 2, 3, 4, 5, 6].npz').", default='res_toy_[1, 2, 3, 4, 5, 6].npz', type=str)
     # experiment arguments
-    parser.add_argument("-m", "--max_states", help="Max state for testing (default=3).", default=3, type=int)
-    parser.add_argument("-f", "--train_frac", help="Fraction of training exms (default=0.75)", default=0.1, type=float)
+    parser.add_argument("-s", "--states", help="List of states for testing (default=3).", default='1,2,3,4,5', type=str)
+    parser.add_argument("-f", "--train_frac", help="Fraction of training exms (default=0.15)", default='0.1', type=str)
     parser.add_argument("-d", "--datapoints", help="Amount of data points (default=1000)", default=1000, type=int)
-    parser.add_argument("-r", "--reps", help="Number of repetitions (default 10)", default=1, type=int)
-    parser.add_argument("-s", "--method_set", help="Select active method set. (default 'full')", default='lb,rr,svr,tcrfr_pl', type=str)
+    parser.add_argument("-r", "--reps", help="Number of repetitions (default 10)", default=3, type=int)
+    parser.add_argument("-m", "--method_set", help="Select active method set. (default 'full')", default='lb,rr,svr,flexmix,krr,tr', type=str)
     # grid computing arguments
     parser.add_argument("-p", "--processes", help="Number of processes (default 4)", default=1, type=int)
     parser.add_argument("-l", "--local", help="Run local or distribute? (default True)", default=True, type=bool)
@@ -102,31 +116,30 @@ if __name__ == '__main__':
 
     # Plotting is done locally
     if arguments.plot_results:
-        plot_results('res_toy_[1, 2, 3, 4, 5].npz')
+        plot_results(arguments.results_filename)
         exit(0)
 
     # this is for generating a nice looking motivational example
-    (vecX, vecy, vecz) = get_1d_toy_data(num_exms=arguments.datapoints, plot=True)
+    (vecX, vecy, vecz) = get_1d_toy_data(num_exms=arguments.datapoints, plot=False)
 
     # generate parameter sets
     methods, params = generate_param_set(arguments.method_set)
 
     MEASURES = 6
     REPS = arguments.reps
-    states = range(1, arguments.max_states+1)
+    states = np.array(arguments.states.split(','), dtype=np.int).tolist()
+    train_fracs = np.array(arguments.train_frac.split(','), dtype=np.float).tolist()[0]
+    print train_fracs
     mse = {}
     results = []
-
     if arguments.local:
         # This is necessary for using profiler
         print("Local computations.")
-        #for s in range(len(states)):
-        if True:
-            s = states[-2]
+        for s in states:
             if s not in mse:
                 mse[s] = np.zeros((REPS, MEASURES*len(methods)))
             for n in range(REPS):
-                (names, res) = main_run(methods, params, vecX, vecy, vecz, arguments.train_frac, 0.1, states[s], False)
+                (names, res) = main_run(methods, params, vecX, vecy, vecz, train_fracs, 0.1, s, False)
                 perf = mse[s]
                 cnt = 0
                 for p in range(MEASURES):
@@ -138,14 +151,12 @@ if __name__ == '__main__':
         sn_map = {}
         cnt = 0
         print("Distribute computations.")
-        # for s in range(len(states)):
-        if True:
-            s = states[-2]
+        for s in states:
             if s not in mse:
                 mse[s] = np.zeros((REPS, MEASURES*len(methods)))
             for n in range(REPS):
-                job = Job(main_run, [methods, params, vecX, vecy, vecz, arguments.train_frac, 0.1, states[s], False],
-                          mem_max='8G', mem_free='16G', name='TCRFR it({0}) state({1})'.format(n, states[s]))
+                job = Job(main_run, [methods, params, vecX, vecy, vecz, train_fracs, 0.1, s, False],
+                          mem_max='8G', mem_free='16G', name='TCRFR it({0}) state({1})'.format(n, s))
                 jobs.append(job)
                 sn_map[cnt] = (s, n)
                 cnt += 1
@@ -166,16 +177,31 @@ if __name__ == '__main__':
     means = np.zeros((len(states), MEASURES*len(methods)))
     stds = np.zeros((len(states), MEASURES*len(methods)))
 
-    print names
-    print res[0][1]
+    print '\n'
+    print '================================================ FINAL RESULT'
+    idx = 0
     for key in mse.iterkeys():
-        means[key, :] = np.mean(mse[key], axis=0)
-        stds[key, :] = np.std(mse[key], axis=0)
-        print states[key], ': ', np.mean(mse[key], axis=0).tolist()
-        print 'STD ', np.std(mse[key], axis=0).tolist()
+        means[idx, :] = np.mean(mse[key], axis=0)
+        stds[idx, :] = np.std(mse[key], axis=0)
+
+        print '------------------------------------------------'
+        print 'States(',key, ')  Train_Frac(',train_fracs,')'
+        m = means[idx, :].reshape((len(names), MEASURES), order='F')
+        s = stds[idx, :].reshape((len(names), MEASURES), order='F')
+        print ''.ljust(44), '', res[0][1]
+        for i in range(len(names)):
+            name = names[i].ljust(45)
+            for j in range(MEASURES):
+                name += '  {0:+3.4f}/{1:1.2f}'.format(m[i,j], s[i,j]).ljust(23)
+            print name
+        print '------------------------------------------------'
+        idx += 1
+
+    print '================================================ FINAL RESULT END'
 
     # save results
     np.savez('res_toy_{0}.npz'.format(states), MEASURES=MEASURES, methods=methods, params=params,
-             means=means, stds=stds, states=states, measure_names=measure_names, names=names)
+             means=means, stds=stds, states=states, measure_names=measure_names, names=names, train_fracs=train_fracs)
+
     # ..and stop
     print('Finish!')

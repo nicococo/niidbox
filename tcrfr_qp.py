@@ -1,5 +1,3 @@
-from abstract_tcrfr import AbstractTCRFR
-
 __author__ = 'nicococo'
 import numpy as np
 from cvxopt import matrix, spmatrix, sparse

@@ -1,10 +1,8 @@
-import matplotlib
-matplotlib.use('QT4Agg')
+# import matplotlib
+# matplotlib.use('QT4Agg')
 # change to type 1 fonts!
-matplotlib.rcParams['pdf.fonttype'] = 42
-matplotlib.rcParams['ps.fonttype'] = 42
-import matplotlib.pyplot as plt
-
+# matplotlib.rcParams['pdf.fonttype'] = 42
+# matplotlib.rcParams['ps.fonttype'] = 42
 import numpy as np
 import cvxopt as co
 
@@ -12,6 +10,8 @@ from sklearn.svm import SVR
 from sklearn.metrics import median_absolute_error, mean_squared_error, r2_score, mean_absolute_error, \
     adjusted_rand_score
 import sklearn.cluster as cl
+
+import matplotlib.pyplot as plt
 
 from tcrf_regression import TransductiveCrfRegression
 from tcrfr_indep_model import TCrfRIndepModel
