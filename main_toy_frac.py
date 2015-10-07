@@ -28,7 +28,7 @@ if __name__ == '__main__':
     parser.add_argument("-r", "--reps", help="Number of repetitions (default 10)", default=10, type=int)
     parser.add_argument("-m", "--method_set", help="Select active method set. (default 'full')", default='lb,rr,svr,flexmix,krr,tr', type=str)
     # grid computing arguments
-    parser.add_argument("-p", "--processes", help="Number of processes (default 4)", default=6, type=int)
+    parser.add_argument("-p", "--processes", help="Number of processes (default 4)", default=1, type=int)
     parser.add_argument("-l", "--local", help="Run local? (default True)", default=False, type=bool)
     arguments = parser.parse_args(sys.argv[1:])
     print arguments
@@ -74,7 +74,7 @@ if __name__ == '__main__':
                 mse[train_frac] = np.zeros((REPS, MEASURES*len(methods)))
             for n in range(REPS):
                 job = Job(main_run, [methods, params, vecX, vecy, vecz, train_frac, 0.1, states, False],
-                          mem_max='4G', mem_free='8G', name='TCRFR it({0}) frac({1})'.format(n, train_frac))
+                          mem_max='2G', mem_free='4G', name='TCRFR it({0}) frac({1})'.format(n, train_frac))
                 jobs.append(job)
                 sn_map[cnt] = (train_frac, n)
                 cnt += 1
