@@ -102,7 +102,7 @@ def get_1d_toy_data(num_exms=300, plot=False):
     return vecX, vecy, vecz
 
 
-def evaluate(truth, preds, true_lats, lats):
+def evaluate(truth, preds, true_lats, lats, time):
     """ Measure regression performance
     :return: list of error measures and corresponding names
     """
@@ -120,6 +120,9 @@ def evaluate(truth, preds, true_lats, lats):
     names.append('R2 Score')
     errs.append(adjusted_rand_score(true_lats, lats))
     names.append('Adjusted Rand Score')
+    errs.append(time)
+    names.append('Runtime')
+
     return np.array(errs), names
 
 
@@ -135,7 +138,7 @@ def method_transductive_regression(vecX, vecy, train, test, states=2, params=[0.
     XtY = (vecX[train, :].T.dot(vecy[train]))
     w = np.linalg.inv(XXt).dot(XtY.T)
 
-    bak = vecy[test]
+    bak = vecy[test].copy()
     vecy[test] = w.T.dot(vecX[test, :].T)
     # Stage 2: perform global optimization with train + test samples
     C1 = params[1]
@@ -395,6 +398,9 @@ def method_flexmix(vecX, vecy, train, test, states=2, params=[200, 0.001], true_
     my_const = 20.0
     new_vecy = vecy.copy() / my_const
 
+    if len(train)<8*states:
+        return 'FlexMix', np.zeros(len(test)), np.zeros(len(test))
+
     # Use the mixture of regressions FlexMix package from R
     import rpy2.robjects as robjects
     from rpy2.robjects import pandas2ri
@@ -452,6 +458,7 @@ def method_flexmix(vecX, vecy, train, test, states=2, params=[200, 0.001], true_
 
 def main_run(methods, params, vecX, vecy, vecz, train_frac, val_frac, states, plot):
     import numpy as np
+    import time
 
     from sklearn.svm import SVR
     from sklearn.metrics import median_absolute_error, mean_squared_error, r2_score, mean_absolute_error, adjusted_rand_score
@@ -480,6 +487,7 @@ def main_run(methods, params, vecX, vecy, vecz, train_frac, val_frac, states, pl
     vecX = np.hstack((vecX, np.ones((vecX.shape[0], 1))))
 
     names = []
+    times = []
     res = []
     if plot:
         plt.figure(1)
@@ -497,7 +505,7 @@ def main_run(methods, params, vecX, vecy, vecz, train_frac, val_frac, states, pl
                 (name, _pred, _lats) = methods[m](np.array(vecX, copy=True), np.array(vecy, copy=True),
                                                 np.array(train, copy=True), np.array(test, copy=True),
                                                 states=states, params=p, true_latent=vecz, plot=False)
-                eval_val, _ = evaluate(vecy[test[:val_nums]], _pred[:val_nums], vecz[test[:val_nums]], _lats[:val_nums])
+                eval_val, _ = evaluate(vecy[test[:val_nums]], _pred[:val_nums], vecz[test[:val_nums]], _lats[:val_nums], 0)
                 if eval_val[1] < val_error:
                     best_param = p
         else:
@@ -509,10 +517,13 @@ def main_run(methods, params, vecX, vecy, vecz, train_frac, val_frac, states, pl
         tst_train_nums = np.floor(samples*train_frac)
         tst_train = inds[:tst_train_nums]
         tst_test = inds[tst_train_nums:]
+        starttime = time.time()
         (name, pred, lats) = methods[m](np.array(vecX, copy=True), np.array(vecy, copy=True),
                                         np.array(tst_train, copy=True), np.array(tst_test, copy=True),
                                         states=states, params=best_param, true_latent=vecz, plot=False)
-        res.append(evaluate(vecy[tst_test], pred, vecz[tst_test], lats))
+        stoptime = time.time() - starttime
+        times.append(stoptime)
+        res.append(evaluate(vecy[tst_test], pred, vecz[tst_test], lats, stoptime))
         names.append(name)
         if plot:
             plt.figure(1)
@@ -546,6 +557,87 @@ def main_run(methods, params, vecX, vecy, vecz, train_frac, val_frac, states, pl
     return names, res
 
 
+def generate_param_set(set_name = 'full'):
+    param_flx = [[1000, 0.001], [1000, 0.0001]]
+    param_rr = [[0.1], [0.01], [0.001], [0.0001], [0.00001], [0.000001]]
+    param_svr = [[0.1, 0.01], [0.1, 0.1], [1.0, .01], [1.0, 0.1], [10., .01], [10., .1], [100., .1], [100., .01]]
+    param_krr = param_rr
+    param_tr = list()
+    for i in range(len(param_rr)):
+        for j in range(len(param_rr)):
+            for k in range(len(param_rr)):
+                param_tr.append([param_rr[i][0], 100.*param_rr[j][0], 100.*param_rr[k][0]])
+
+    param_tcrfr_indep = list()
+    param_tcrfr = list()
+    param_tcrfr_qp = list()
+    param_tcrfr_pl = list()
+
+    tcrfr_theta = [0.85]
+    tcrfr_lambda = [0.000001]
+    tcrfr_gamma = [100.0]
+    tcrfr_k1 = [8, 20, 30]
+
+    tcrfr_k1 = [30] # 5%
+    tcrfr_k1 = [30] # 10%
+    tcrfr_k1 = [15, 30]
+    tcrfr_k1 = [4, 8] # 20%
+
+    tcrfr_k2 = [4]  # 20%
+    tcrfr_k2 = [18] # 5%
+    tcrfr_k2 = [4] # 5%
+    tcrfr_k2 = [4, 8] # 20%
+
+    tcrfr_neighb = [10.]
+
+    for i in range(len(tcrfr_theta)):
+        for j in range(len(tcrfr_lambda)):
+            for k in range(len(tcrfr_gamma)):
+                param_tcrfr.append([tcrfr_theta[i], tcrfr_lambda[j], tcrfr_gamma[k]])
+                for l in range(len(tcrfr_neighb)):
+                    param_tcrfr_indep.append([tcrfr_theta[i], tcrfr_lambda[j], tcrfr_gamma[k], tcrfr_neighb[l]])
+                for l in range(len(tcrfr_k1)):
+                    param_tcrfr_pl.append([tcrfr_theta[i], tcrfr_lambda[j], tcrfr_gamma[k], tcrfr_k1[l]])
+                for l in range(len(tcrfr_k2)):
+                    param_tcrfr_qp.append([tcrfr_theta[i], tcrfr_lambda[j], tcrfr_gamma[k], tcrfr_k2[l]])
+
+    params = []
+    methods = []
+    if set_name == 'full':
+        params = [param_rr, param_svr, param_krr, param_tr, param_flx, param_tcrfr_indep, param_tcrfr]
+        methods = [method_rr, method_svr, method_krr,
+                   method_transductive_regression, method_flexmix,
+                   method_tcrfr_indep, method_tcrfr]
+    if 'tcrfr_qp' in set_name:
+        methods.append(method_tcrfr_qp)
+        params.append(param_tcrfr_qp)
+    if 'tcrfr_pl' in set_name:
+        methods.append(method_tcrfr_pl)
+        params.append(param_tcrfr_pl)
+    if 'tcrfr_indep' in set_name:
+        methods.append(method_tcrfr_indep)
+        params.append(param_tcrfr_indep)
+    if 'rr' in set_name:
+        methods.append(method_rr)
+        params.append(param_rr)
+    if 'lb' in set_name:
+        methods.append(method_lb)
+        params.append(param_rr)
+    if 'svr' in set_name:
+        methods.append(method_svr)
+        params.append(param_svr)
+    if 'krr' in set_name:
+        methods.append(method_krr)
+        params.append(param_krr)
+    if 'tr' in set_name:
+        methods.append(method_transductive_regression)
+        params.append(param_tr)
+    if 'flexmix' in set_name:
+        methods.append(method_flexmix)
+        params.append(param_flx)
+    return methods, params
+
+
 def plot_results(name):
     f = np.load(name)
     means = f['means']
@@ -559,16 +651,50 @@ def plot_results(name):
     cnt = 0
     fmts = ['--xm', '--xy', '--xc', ':xg', ':xm', '-ob', '-or']
     lws = [2., 2., 2., 2., 2., 2., 2.]
-    for i in range(measures):
-        plt.subplot(2, 3, i+1)
-        for m in range(len(methods)):
-            plt.errorbar(states, means[:, cnt], yerr=stds[:, cnt], fmt=fmts[m],
-                         elinewidth=1.0, linewidth=lws[m], alpha=0.6)
-            cnt += 1
-        plt.xlabel('Number of Latent States', fontsize=20)
-        plt.ylabel(f['measure_names'][i], fontsize=20)
-        plt.xlim([1, states[-1]])
+    for i in range(measures+1):
+        plt.subplot(2, 4, i+1)
+        if i < measures:
+            for m in range(len(methods)):
+                plt.errorbar(states, means[:, cnt], yerr=stds[:, cnt], fmt=fmts[m],
+                             elinewidth=1.0, linewidth=lws[m], alpha=0.6)
+                cnt += 1
+            plt.xlabel('Number of Latent States', fontsize=20)
+            plt.ylabel(f['measure_names'][i], fontsize=20)
+            plt.xlim([1, states[-1]])
+        if i == measures:
+           plt.legend(names, loc=1, fontsize=18)
+    plt.show()
+    print "DONE"
+
+
+def plot_frac_results(name):
+    f = np.load(name)
+    means = f['means']
+    stds = f['stds']
+    train_fracs = f['train_fracs']
+    methods = f['methods']
+    names = f['names']
+    measures = f['MEASURES']
+    print measures
+
+    print names
+
+    plt.figure(1)
+    cnt = 0
+    fmts = ['--oy', '-or', '--oc', '--og', '--om', '--ob', '--or']
+    lws = [2., 2., 2., 2., 2., 2., 2.]
+    for i in range(measures+1):
+        if i < measures:
+            plt.subplot(2, 4, i+1)
+            for m in range(len(methods)):
+                plt.errorbar(train_fracs[::-1], means[:, cnt], yerr=stds[:, cnt], fmt=fmts[m],
+                             elinewidth=1.0, linewidth=lws[m], alpha=0.6)
+                cnt += 1
+            plt.xlabel('Fraction of labeled examples', fontsize=20)
+            plt.ylabel(f['measure_names'][i], fontsize=20)
+            plt.xlim([0.0, train_fracs[-1]])
         if i == measures-1:
-           plt.legend(names, loc=4, fontsize=18)
+           plt.legend(names, bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.)
+           # plt.legend(names, loc=1, fontsize=18)
     plt.show()
     print "DONE"
