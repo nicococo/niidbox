@@ -597,6 +597,22 @@ def generate_param_set(set_name = 'full', exp_name=''):
         tcrfr_k1 = [8]
         tcrfr_k2 = [8]
 
+    if exp_name=='states':
+        print("Special setting for varying datapoint expeeriment.")
+        tcrfr_theta = [0.85, 0.8]
+        tcrfr_lambda = [0.000001]
+        tcrfr_gamma = [100.0]
+        tcrfr_k1 = [4,8,12]
+        tcrfr_k2 = [2,4,6]
+
+    if exp_name=='frac':
+        print("Special setting for varying datapoint expeeriment.")
+        tcrfr_theta = [0.85, 0.8]
+        tcrfr_lambda = [0.000001]
+        tcrfr_gamma = [100.0]
+        tcrfr_k1 = [4,8,12]
+        tcrfr_k2 = [2,4,6]
+
 
     for i in range(len(tcrfr_theta)):
         for j in range(len(tcrfr_lambda)):
@@ -662,8 +678,8 @@ def plot_results(name):
     fmts = ['--xm', '--xy', '--xc', ':xg', ':xm', '-ob', '-or']
     lws = [2., 2., 2., 2., 2., 2., 2.]
     for i in range(measures+1):
-        plt.subplot(2, 4, i+1)
         if i < measures:
+            plt.subplot(2, 4, i+1)
             for m in range(len(methods)):
                 plt.errorbar(states, means[:, cnt], yerr=stds[:, cnt], fmt=fmts[m],
                              elinewidth=1.0, linewidth=lws[m], alpha=0.6)
@@ -671,8 +687,8 @@ def plot_results(name):
             plt.xlabel('Number of Latent States', fontsize=20)
             plt.ylabel(f['measure_names'][i], fontsize=20)
             plt.xlim([1, states[-1]])
-        if i == measures:
-           plt.legend(names, loc=1, fontsize=18)
+        if i == measures-1:
+           plt.legend(names, bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.)
     plt.show()
     print "DONE"
 
@@ -729,7 +745,7 @@ def plot_data_results(name):
     plt.figure(1)
     cnt = 0
     fmts = ['-oc', '-ob']
-    lws = [2., 2., 2., 2., 2., 2., 2.]
+    lws = [3., 3.]
     i = measures-1
     cnt = (measures-1)*2
 
@@ -741,12 +757,13 @@ def plot_data_results(name):
 
     for m in range(len(methods)):
         plt.errorbar(datapoints, means[:, cnt], yerr=stds[:, cnt], fmt=fmts[m],
-                     elinewidth=1.0, linewidth=lws[m], alpha=0.6)
+                     elinewidth=2.0, linewidth=lws[m], alpha=0.8)
         cnt += 1
+    plt.semilogx()
     plt.xlabel('Number of examples', fontsize=20)
     plt.ylabel(f['measure_names'][i], fontsize=20)
-    plt.xlim([0, datapoints[-1]+100])
-    plt.legend(names, loc=1, fontsize=18)
+    plt.xlim([90, datapoints[-1]+100])
+    plt.legend(names, loc=2, fontsize=18)
 
     plt.show()
     print "DONE"

@@ -24,10 +24,10 @@ if __name__ == '__main__':
     parser.set_defaults(plot_results=False)
     # experiment arguments
     parser.add_argument("-s", "--states", help="List of states for testing (default=3).", default='3', type=str)
-    parser.add_argument("-f", "--train_frac", help="Fraction of training exms (default=0.15)", default='0.05', type=str)
-    parser.add_argument("-d", "--datapoints", help="Amount of data points (default=1000)", default=600, type=int)
+    parser.add_argument("-f", "--train_frac", help="Fraction of training exms (default=0.15)", default='0.25,0.34,0.5,0.66,0.75', type=str)
+    parser.add_argument("-d", "--datapoints", help="Amount of data points (default=1000)", default=800, type=int)
     parser.add_argument("-r", "--reps", help="Number of repetitions (default 10)", default=1, type=int)
-    parser.add_argument("-m", "--method_set", help="Select active method set. (default 'full')", default='tcrfr_qp', type=str)
+    parser.add_argument("-m", "--method_set", help="Select active method set. (default 'full')", default='lb,rr,svr,flexmix,krr,tr,tcrfr_pl,tcrfr_qp', type=str)
     # grid computing arguments
     parser.add_argument("-p", "--processes", help="Number of processes (default 4)", default=6, type=int)
     parser.add_argument('--gridmap', dest='gridmap', action='store_true', help='Use gridmap (default False)')
@@ -46,7 +46,7 @@ if __name__ == '__main__':
     (vecX, vecy, vecz) = get_1d_toy_data(num_exms=arguments.datapoints, plot=False)
 
     # generate parameter sets
-    methods, params = generate_param_set(arguments.method_set)
+    methods, params = generate_param_set(arguments.method_set, 'frac')
 
     MEASURES = 7
     REPS = arguments.reps

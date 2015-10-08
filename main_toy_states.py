@@ -20,14 +20,14 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
     # plot results arguments
-    parser.add_argument("-b", "--results_filename", help="Set results filename (default='').", default='res_toy_[3].npz', type=str)
+    parser.add_argument("-b", "--results_filename", help="Set results filename (default='').", default='res_toy_states_[1, 2, 3, 4, 5].npz', type=str)
     parser.add_argument('--plot_results', dest='plot_results', action='store_true', help='Plot results (default False)')
     parser.set_defaults(plot_results=False)
     # experiment arguments
     parser.add_argument("-s", "--states", help="List of states for testing (default=3).", default='1,2,3,4,5', type=str)
-    parser.add_argument("-f", "--train_frac", help="Fraction of training exms (default=0.15)", default='0.15', type=str)
-    parser.add_argument("-d", "--datapoints", help="Amount of data points (default=1000)", default=1000, type=int)
-    parser.add_argument("-r", "--reps", help="Number of repetitions (default 10)", default=20, type=int)
+    parser.add_argument("-f", "--train_frac", help="Fraction of training exms (default=0.15)", default='0.25', type=str)
+    parser.add_argument("-d", "--datapoints", help="Amount of data points (default=1000)", default=800, type=int)
+    parser.add_argument("-r", "--reps", help="Number of repetitions (default 10)", default=10, type=int)
     parser.add_argument("-m", "--method_set", help="Select active method set. (default 'full')", default='lb,rr,svr,flexmix,krr,tr,tcrfr_pl,tcrfr_qp', type=str)
     # grid computing arguments
     parser.add_argument("-p", "--processes", help="Number of processes (default 4)", default=4, type=int)
@@ -47,7 +47,7 @@ if __name__ == '__main__':
     (vecX, vecy, vecz) = get_1d_toy_data(num_exms=arguments.datapoints, plot=False)
 
     # generate parameter sets
-    methods, params = generate_param_set(arguments.method_set)
+    methods, params = generate_param_set(arguments.method_set, 'states')
 
     MEASURES = 7
     REPS = arguments.reps
