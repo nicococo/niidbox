@@ -14,8 +14,6 @@ from tcrf_regression import TransductiveCrfRegression
 from tcrfr_indep_model import TCrfRIndepModel
 from tcrfr_pair_model import TCrfRPairwisePotentialModel
 
-import matplotlib.pyplot as plt
-
 
 def fit_ridge_regression(lam, vecX, vecy):
     # solve the ridge regression problem
@@ -639,6 +637,8 @@ def generate_param_set(set_name = 'full'):
 
 
 def plot_results(name):
+    import matplotlib.pyplot as plt
+
     f = np.load(name)
     means = f['means']
     stds = f['stds']
@@ -668,6 +668,8 @@ def plot_results(name):
 
 
 def plot_frac_results(name):
+    import matplotlib.pyplot as plt
+
     f = np.load(name)
     means = f['means']
     stds = f['stds']
