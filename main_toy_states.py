@@ -20,16 +20,17 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
     # plot results arguments
-    parser.add_argument("-a", "--plot_results", help="Show results plot (default=False).", default=True, type=bool)
+    parser.add_argument("-a", "--plot_results", help="Show results plot (default=False).", default=False, type=bool)
     parser.add_argument("-b", "--results_filename", help="Set results filename (default='').", default='res_toy_[3].npz', type=str)
     # experiment arguments
-    parser.add_argument("-s", "--states", help="List of states for testing (default=3).", default='3', type=str)
-    parser.add_argument("-f", "--train_frac", help="Fraction of training exms (default=0.15)", default='0.1', type=str)
+    parser.add_argument("-s", "--states", help="List of states for testing (default=3).", default='1,2,3,4,5', type=str)
+    parser.add_argument("-f", "--train_frac", help="Fraction of training exms (default=0.15)", default='0.15', type=str)
     parser.add_argument("-d", "--datapoints", help="Amount of data points (default=1000)", default=1000, type=int)
-    parser.add_argument("-r", "--reps", help="Number of repetitions (default 10)", default=1, type=int)
-    parser.add_argument("-m", "--method_set", help="Select active method set. (default 'full')", default='lb,rr,svr,flexmix,krr,tr,tcrfr_pl', type=str)
+    parser.add_argument("-r", "--reps", help="Number of repetitions (default 10)", default=20, type=int)
+    parser.add_argument("-m", "--method_set", help="Select active method set. (default 'full')", default='lb,rr,svr,flexmix,krr,tr,tcrfr_pl,tcrfr_qp', type=str)
     # grid computing arguments
-    parser.add_argument("-p", "--processes", help="Number of processes (default 4)", default=1, type=int)
+    parser.add_argument("-p", "--processes", help="Number of processes (default 4)", default=4, type=int)
+    parser.add_argument("-g", "--gridmap", help="Use gridmap? (default True)", default=True, type=bool)
     parser.add_argument("-l", "--local", help="Run local or distribute? (default True)", default=True, type=bool)
     arguments = parser.parse_args(sys.argv[1:])
     print arguments
@@ -52,7 +53,7 @@ if __name__ == '__main__':
     print train_fracs
     mse = {}
     results = []
-    if arguments.local:
+    if not arguments.gridmap:
         # This is necessary for using profiler
         print("Local computations.")
         for s in states:
@@ -81,7 +82,7 @@ if __name__ == '__main__':
                 sn_map[cnt] = (s, n)
                 cnt += 1
 
-            processedJobs = process_jobs(jobs, max_processes=arguments.processes, local=arguments.local >= 1)
+            processedJobs = process_jobs(jobs, max_processes=arguments.processes, local=arguments.local)
             for (i, result) in enumerate(processedJobs):
                 print "Job #", i
                 (names, res) = result
@@ -120,7 +121,7 @@ if __name__ == '__main__':
     print '================================================ FINAL RESULT END'
 
     # save results
-    np.savez('res_toy_{0}.npz'.format(states), MEASURES=MEASURES, methods=methods, params=params,
+    np.savez('res_toy_states_{0}.npz'.format(states), MEASURES=MEASURES, methods=methods, params=params,
              means=means, stds=stds, states=states, measure_names=measure_names, names=names, train_fracs=train_fracs)
 
     # ..and stop

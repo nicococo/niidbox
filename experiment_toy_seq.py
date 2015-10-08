@@ -266,7 +266,7 @@ def method_tcrfr_pl(vecX, vecy, train, test, states=2, params=[0.9, 0.00001, 0.5
 
     tcrfr = TCRFR_Fast(data=vecX.T, labels=vecy[train], label_inds=train, unlabeled_inds=test, states=states, A=A,
                   reg_theta=params[0], reg_lambda=params[1], reg_gamma=params[2]*float(len(train)+len(test)),
-                  trans_regs=[.01, 0.5], trans_sym=[0], lbl_weight=1.0)
+                  trans_regs=[.05, 0.5], trans_sym=[0], lbl_weight=1.0)
 
     tcrfr.fit(max_iter=20, use_grads=False)
     y_preds, lats = tcrfr.predict()
@@ -573,7 +573,7 @@ def generate_param_set(set_name = 'full'):
     param_tcrfr_qp = list()
     param_tcrfr_pl = list()
 
-    tcrfr_theta = [0.85]
+    tcrfr_theta = [0.85, 0.95]
     tcrfr_lambda = [0.000001]
     tcrfr_gamma = [100.0]
     tcrfr_k1 = [8, 20, 30]
@@ -581,12 +581,12 @@ def generate_param_set(set_name = 'full'):
     tcrfr_k1 = [30] # 5%
     tcrfr_k1 = [30] # 10%
     tcrfr_k1 = [15, 30]
-    tcrfr_k1 = [4, 8] # 20%
+    tcrfr_k1 = [30, 20] # 20%
 
     tcrfr_k2 = [4]  # 20%
     tcrfr_k2 = [18] # 5%
     tcrfr_k2 = [4] # 5%
-    tcrfr_k2 = [4, 8] # 20%
+    tcrfr_k2 = [4, 12] # 20%
 
     tcrfr_neighb = [10.]
 
