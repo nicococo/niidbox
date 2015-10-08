@@ -1,11 +1,11 @@
-import matplotlib
-# import matplotlib.rcsetup as rcsetup
-# print(rcsetup.all_backends)
-# #
-matplotlib.use('MacOSX')
-# # change to type 1 fonts!
-matplotlib.rcParams['pdf.fonttype'] = 42
-matplotlib.rcParams['ps.fonttype'] = 42
+# import matplotlib
+# # import matplotlib.rcsetup as rcsetup
+# # print(rcsetup.all_backends)
+# # #
+# matplotlib.use('MacOSX')
+# # # change to type 1 fonts!
+# matplotlib.rcParams['pdf.fonttype'] = 42
+# matplotlib.rcParams['ps.fonttype'] = 42
 
 import argparse, sys
 from experiment_toy_seq import *
