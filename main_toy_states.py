@@ -56,6 +56,8 @@ if __name__ == '__main__':
     print train_fracs
     mse = {}
     results = []
+    print arguments.gridmap
+    print type(arguments.gridmap)
     if not arguments.gridmap:
         # This is necessary for using profiler
         print("Local computations.")
@@ -85,17 +87,17 @@ if __name__ == '__main__':
                 sn_map[cnt] = (s, n)
                 cnt += 1
 
-            processedJobs = process_jobs(jobs, max_processes=arguments.processes, local=arguments.local)
-            for (i, result) in enumerate(processedJobs):
-                print "Job #", i
-                (names, res) = result
-                (s, n) = sn_map[i]
-                perf = mse[s]
-                cnt = 0
-                for p in range(MEASURES):
-                    for m in range(len(methods)):
-                        perf[n, cnt] = res[m][0][p]
-                        cnt += 1
+        processedJobs = process_jobs(jobs, max_processes=arguments.processes, local=arguments.local)
+        for (i, result) in enumerate(processedJobs):
+            print "Job #", i
+            (names, res) = result
+            (s, n) = sn_map[i]
+            perf = mse[s]
+            cnt = 0
+            for p in range(MEASURES):
+                for m in range(len(methods)):
+                    perf[n, cnt] = res[m][0][p]
+                    cnt += 1
 
     measure_names = res[0][1]
     means = np.zeros((len(states), MEASURES*len(methods)))
