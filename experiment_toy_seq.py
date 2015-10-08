@@ -44,7 +44,7 @@ def get_1d_toy_data(num_exms=300, plot=False):
 
     # ..and corresponding target value y
     y = 4.*z + x*(6.*z+1.) + 0.01*np.random.randn(grid_x)
-    y = 4.*z + x*(6.*z+1.) + 0.1*np.random.randn(grid_x)
+    # y = 4.*z + x*(6.*z+1.) + 0.1*np.random.randn(grid_x)
 
     vecX = x.reshape(grid_x, 1)
     vecy = y.reshape(grid_x)
@@ -555,7 +555,7 @@ def main_run(methods, params, vecX, vecy, vecz, train_frac, val_frac, states, pl
     return names, res
 
 
-def generate_param_set(set_name = 'full'):
+def generate_param_set(set_name = 'full', exp_name=''):
     param_flx = [[1000, 0.001], [1000, 0.0001]]
     param_rr = [[0.1], [0.01], [0.001], [0.0001], [0.00001], [0.000001]]
     param_svr = [[0.1, 0.01], [0.1, 0.1], [1.0, .01], [1.0, 0.1], [10., .01], [10., .1], [100., .1], [100., .01]]
@@ -572,6 +572,7 @@ def generate_param_set(set_name = 'full'):
     param_tcrfr_pl = list()
 
     tcrfr_theta = [0.85, 0.95]
+
     tcrfr_lambda = [0.000001]
     tcrfr_gamma = [100.0]
     tcrfr_k1 = [8, 20, 30]
@@ -587,6 +588,15 @@ def generate_param_set(set_name = 'full'):
     tcrfr_k2 = [4, 12] # 20%
 
     tcrfr_neighb = [10.]
+
+    if exp_name=='data':
+        print("Special setting for varying datapoint expeeriment.")
+        tcrfr_theta = [0.85]
+        tcrfr_lambda = [0.000001]
+        tcrfr_gamma = [100.0]
+        tcrfr_k1 = [8]
+        tcrfr_k2 = [8]
+
 
     for i in range(len(tcrfr_theta)):
         for j in range(len(tcrfr_lambda)):
@@ -698,5 +708,45 @@ def plot_frac_results(name):
         if i == measures-1:
            plt.legend(names, bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.)
            # plt.legend(names, loc=1, fontsize=18)
+    plt.show()
+    print "DONE"
+
+def plot_data_results(name):
+    import matplotlib.pyplot as plt
+
+    f = np.load(name)
+    means = f['means']
+    stds = f['stds']
+    train_fracs = f['train_fracs']
+    datapoints = f['datapoints']
+    methods = f['methods']
+    names = f['names']
+    measures = f['MEASURES']
+    print measures
+    print names
+
+
+    plt.figure(1)
+    cnt = 0
+    fmts = ['-oc', '-ob']
+    lws = [2., 2., 2., 2., 2., 2., 2.]
+    i = measures-1
+    cnt = (measures-1)*2
+
+    print f['measure_names'][i]
+    print datapoints
+    print means.shape
+    print means[:, cnt:cnt+2]
+
+
+    for m in range(len(methods)):
+        plt.errorbar(datapoints, means[:, cnt], yerr=stds[:, cnt], fmt=fmts[m],
+                     elinewidth=1.0, linewidth=lws[m], alpha=0.6)
+        cnt += 1
+    plt.xlabel('Number of examples', fontsize=20)
+    plt.ylabel(f['measure_names'][i], fontsize=20)
+    plt.xlim([0, datapoints[-1]+100])
+    plt.legend(names, loc=1, fontsize=18)
+
     plt.show()
     print "DONE"

@@ -24,12 +24,12 @@ if __name__ == '__main__':
     parser.set_defaults(plot_results=False)
     # experiment arguments
     parser.add_argument("-s", "--states", help="List of states for testing (default=3).", default='3', type=str)
-    parser.add_argument("-f", "--train_frac", help="Fraction of training exms (default=0.15)", default='0.05,0.075,0.1,0.125,0.15', type=str)
-    parser.add_argument("-d", "--datapoints", help="Amount of data points (default=1000)", default=1000, type=int)
-    parser.add_argument("-r", "--reps", help="Number of repetitions (default 10)", default=20, type=int)
-    parser.add_argument("-m", "--method_set", help="Select active method set. (default 'full')", default='lb,rr,svr,flexmix,krr,tr,tcrfr_pl,tcrfr_qp', type=str)
+    parser.add_argument("-f", "--train_frac", help="Fraction of training exms (default=0.15)", default='0.05', type=str)
+    parser.add_argument("-d", "--datapoints", help="Amount of data points (default=1000)", default=600, type=int)
+    parser.add_argument("-r", "--reps", help="Number of repetitions (default 10)", default=1, type=int)
+    parser.add_argument("-m", "--method_set", help="Select active method set. (default 'full')", default='tcrfr_qp', type=str)
     # grid computing arguments
-    parser.add_argument("-p", "--processes", help="Number of processes (default 4)", default=4, type=int)
+    parser.add_argument("-p", "--processes", help="Number of processes (default 4)", default=6, type=int)
     parser.add_argument('--gridmap', dest='gridmap', action='store_true', help='Use gridmap (default False)')
     parser.set_defaults(gridmap=False)
     parser.add_argument('--local', dest='local', action='store_true', help="Run local? (default False)")
@@ -54,7 +54,7 @@ if __name__ == '__main__':
     train_fracs = np.array(arguments.train_frac.split(','), dtype=np.float).tolist()
     mse = {}
     results = []
-    if arguments.gridmap:
+    if not arguments.gridmap:
         # This is necessary for using profiler
         print("Local computations.")
         for train_frac in train_fracs:
@@ -101,7 +101,7 @@ if __name__ == '__main__':
     print '\n'
     print '================================================ FINAL RESULT'
     idx = 0
-    for key in mse.iterkeys():
+    for key in train_fracs:
         means[idx, :] = np.mean(mse[key], axis=0)
         stds[idx, :] = np.std(mse[key], axis=0)
 
