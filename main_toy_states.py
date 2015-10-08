@@ -22,7 +22,7 @@ if __name__ == '__main__':
     # plot results arguments
     parser.add_argument("-b", "--results_filename", help="Set results filename (default='').", default='res_toy_[3].npz', type=str)
     parser.add_argument('--plot_results', dest='plot_results', action='store_true', help='Plot results (default False)')
-    parser.set_defaults(plot_results=True)
+    parser.set_defaults(plot_results=False)
     # experiment arguments
     parser.add_argument("-s", "--states", help="List of states for testing (default=3).", default='1,2,3,4,5', type=str)
     parser.add_argument("-f", "--train_frac", help="Fraction of training exms (default=0.15)", default='0.15', type=str)
