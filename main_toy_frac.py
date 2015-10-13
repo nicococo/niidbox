@@ -8,7 +8,7 @@
 
 import argparse, sys
 from experiment_toy_seq import *
-from gridmap import Job, process_jobs
+#from gridmap import Job, process_jobs
 import logging
 
 
@@ -19,15 +19,15 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
     # plot results arguments
-    parser.add_argument("-b", "--results_filename", help="Set results filename (default='').", default='res_toy_frac_[0.02, 0.05, 0.1, 0.15].npz', type=str)
+    parser.add_argument("-b", "--results_filename", help="Set results filename (default='').", default='res_toy_frac3_[0.25, 0.34, 0.5, 0.66, 0.75].npz', type=str)
     parser.add_argument('--plot_results', dest='plot_results', action='store_true', help='Plot results (default False)')
-    parser.set_defaults(plot_results=False)
+    parser.set_defaults(plot_results=True)
     # experiment arguments
     parser.add_argument("-s", "--states", help="List of states for testing (default=3).", default='3', type=str)
     parser.add_argument("-f", "--train_frac", help="Fraction of training exms (default=0.15)", default='0.25,0.34,0.5,0.66,0.75', type=str)
     parser.add_argument("-d", "--datapoints", help="Amount of data points (default=1000)", default=800, type=int)
     parser.add_argument("-r", "--reps", help="Number of repetitions (default 10)", default=1, type=int)
-    parser.add_argument("-m", "--method_set", help="Select active method set. (default 'full')", default='lb,rr,svr,flexmix,krr,tr,tcrfr_pl,tcrfr_qp', type=str)
+    parser.add_argument("-m", "--method_set", help="Select active method set. (default 'full')", default='lb,rr,svr,flexmix,krr,tr,tcrfr_pl', type=str)
     # grid computing arguments
     parser.add_argument("-p", "--processes", help="Number of processes (default 4)", default=6, type=int)
     parser.add_argument('--gridmap', dest='gridmap', action='store_true', help='Use gridmap (default False)')
@@ -121,7 +121,7 @@ if __name__ == '__main__':
     print '================================================ FINAL RESULT END'
 
     # save results
-    np.savez('res_toy_frac_{0}.npz'.format(train_fracs), MEASURES=MEASURES, methods=methods, params=params,
+    np.savez('res_toy_frac3_{0}.npz'.format(train_fracs), MEASURES=MEASURES, methods=methods, params=params,
              means=means, stds=stds, states=states, measure_names=measure_names, names=names, train_fracs=train_fracs)
 
     # ..and stop

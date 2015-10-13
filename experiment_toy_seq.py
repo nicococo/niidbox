@@ -290,7 +290,47 @@ def method_tcrfr_pl(vecX, vecy, train, test, states=2, params=[0.9, 0.00001, 0.5
 
         plt.show()
 
-    return 'TCRFR-PL', y_preds[test], lats[test]
+    name = 'TCRFR-LBP'
+    if len(params)==5:
+        name = 'TCRFR-LBP ({0})'.format(params[3])
+    return name, y_preds[test], lats[test]
+
+
+def method_tcrfr_pl_plain(vecX, vecy, train, test, states=2, params=[0.9, 0.00001, 0.5, 10], true_latent=None, plot=False):
+    A = co.spmatrix(0.0, range(vecX.shape[0]), range(vecX.shape[0]))
+    for i in range(vecX.shape[0]-1):
+        A[i, i+1] = 1
+        A[i+1, i] = 1
+
+    tcrfr = TCRFR_Fast(data=vecX.T, labels=vecy[train], label_inds=train, unlabeled_inds=test, states=states, A=A,
+                  reg_theta=params[0], reg_lambda=params[1], reg_gamma=params[2]*float(len(train)+len(test)),
+                  trans_regs=[1.0], trans_sym=[0], lbl_weight=1.0)
+
+    tcrfr.fit(max_iter=20, use_grads=False)
+    y_preds, lats = tcrfr.predict()
+    print lats
+
+    if plot:
+        plt.figure(1)
+        plt.subplot(1, 2, 1)
+        plt.plot(vecX[:, 0], vecy, '.g', alpha=0.1, markersize=10.0)
+        plt.plot(vecX[test, 0], vecy[test], 'or', alpha=0.6, markersize=10.0)
+        plt.plot(vecX[test, 0], y_preds[test], 'oc', alpha=0.6, markersize=6.0)
+        plt.plot(vecX[test, 0], lats[test], 'ob', alpha=0.6, markersize=6.0)
+
+        plt.subplot(1, 2, 2)
+        plt.plot(vecX[train, 0], vecy[train], 'or', alpha=0.6, markersize=10.0)
+        plt.plot(vecX[train, 0], lats[train], 'ob', alpha=0.6, markersize=6.0)
+        plt.plot(vecX[train, 0], y_preds[train], 'xg', alpha=0.8, markersize=10.0)
+
+        print('Test performance: ')
+        print evaluate(vecy[test], y_preds[test], true_latent[test], lats[test])
+        print('Training performance: ')
+        print evaluate(vecy[train], y_preds[train], true_latent[train], lats[train])
+
+        plt.show()
+
+    return 'TCRFR-PL (plain)', y_preds[test], lats[test]
 
 
 def method_rr(vecX, vecy, train, test, states=2, params=[0.0001], true_latent=None, plot=False):
@@ -321,7 +361,7 @@ def method_lb(vecX, vecy, train, test, states=2, params=[0.0001], true_latent=No
             w = np.linalg.inv(XXt).dot(XtY.T)
             preds[test_inds] = w.T.dot(vecX[test[test_inds], :].T).T
 
-    return 'Lower Bound', preds, np.ones(len(test))
+    return 'Lower Bound', preds, true_latent[test]
 
 
 def method_svr(vecX, vecy, train, test, states=2, params=[1.0, 0.1, 'linear'], true_latent=None, plot=False):
@@ -598,7 +638,7 @@ def generate_param_set(set_name = 'full', exp_name=''):
         tcrfr_k2 = [8]
 
     if exp_name=='states':
-        print("Special setting for varying datapoint expeeriment.")
+        print("Special setting for varying states expeeriment.")
         tcrfr_theta = [0.85, 0.8]
         tcrfr_lambda = [0.000001]
         tcrfr_gamma = [100.0]
@@ -606,12 +646,19 @@ def generate_param_set(set_name = 'full', exp_name=''):
         tcrfr_k2 = [2,4,6]
 
     if exp_name=='frac':
-        print("Special setting for varying datapoint expeeriment.")
-        tcrfr_theta = [0.85, 0.8]
+        print("Special setting for varying label fraction expeeriment.")
+        tcrfr_theta = [0.85]
         tcrfr_lambda = [0.000001]
         tcrfr_gamma = [100.0]
         tcrfr_k1 = [4,8,12]
-        tcrfr_k2 = [2,4,6]
+        tcrfr_k2 = [2,6]
+
+    if exp_name=='grid':
+        print("Special setting for grid vs ext grid experiment.")
+        tcrfr_theta = [0.99, 0.9, 0.85, 0.8, 0.7]
+        tcrfr_lambda = [0.000001]
+        tcrfr_gamma = [100.0]
+        tcrfr_k1 = [4, 8, 12]
 
 
     for i in range(len(tcrfr_theta)):
@@ -627,17 +674,35 @@ def generate_param_set(set_name = 'full', exp_name=''):
 
     params = []
     methods = []
-    if set_name == 'full':
-        params = [param_rr, param_svr, param_krr, param_tr, param_flx, param_tcrfr_indep, param_tcrfr]
-        methods = [method_rr, method_svr, method_krr,
-                   method_transductive_regression, method_flexmix,
-                   method_tcrfr_indep, method_tcrfr]
+
+    if exp_name=='grid':
+        print("Special setting for grid vs ext grid experiment.")
+        for k in [4, 8, 12]:
+            foo = []
+            for p in param_tcrfr:
+                (t, l, g) = p
+                foo.append([t, l, g, k, 1])
+            params.append(foo)
+            methods.append(method_tcrfr_pl)
+
+        methods.append(method_tcrfr_pl_plain)
+        params.append(param_tcrfr)
+
+
+    # if set_name == 'full':
+    #     params = [param_rr, param_svr, param_krr, param_tr, param_flx, param_tcrfr_indep, param_tcrfr]
+    #     methods = [method_rr, method_svr, method_krr,
+    #                method_transductive_regression, method_flexmix,
+    #                method_tcrfr_indep, method_tcrfr]
     if 'tcrfr_qp' in set_name:
         methods.append(method_tcrfr_qp)
         params.append(param_tcrfr_qp)
     if 'tcrfr_pl' in set_name:
         methods.append(method_tcrfr_pl)
         params.append(param_tcrfr_pl)
+    if 'tcrfr_pl_plain' in set_name:
+        methods.append(method_tcrfr_pl_plain)
+        params.append(param_tcrfr)
     if 'tcrfr_indep' in set_name:
         methods.append(method_tcrfr_indep)
         params.append(param_tcrfr_indep)
@@ -665,6 +730,8 @@ def generate_param_set(set_name = 'full', exp_name=''):
 def plot_results(name):
     import matplotlib.pyplot as plt
 
+    SHORT = True
+
     f = np.load(name)
     means = f['means']
     stds = f['stds']
@@ -673,22 +740,89 @@ def plot_results(name):
     names = f['names']
     measures = f['MEASURES']
 
+    names[0] = 'TCRFR-LBPA'
+    names[-1] = 'MoE'
+
     plt.figure(1)
     cnt = 0
-    fmts = ['--xm', '--xy', '--xc', ':xg', ':xm', '-ob', '-or']
-    lws = [2., 2., 2., 2., 2., 2., 2.]
+    fmts = ['-oc', '-ob', '--oy', '-og', '--om', '--oc', '--or', '-.or']
+    lws = [3., 3., 2., 3., 2., 2., 2., 2.]
+    if len(names)==7:
+        fmts = ['-ob', '--oy', '-og', '--om', '--oc', '--or', '-.or']
+        lws = [ 3., 2., 3., 2., 2., 2., 2.]
+
+    sel = [0,2,5,1]
+    for i in range(4):
+        cnt = sel[i]*len(methods)
+        if i < 3:
+            plt.subplot(1, 4, i+1)
+            for m in range(len(methods)):
+                if m==2:
+                    if sel[i]==5:
+                        plt.errorbar(states[2:], np.ones(len(states[2:])), yerr=np.zeros(len(states[2:])), fmt=fmts[m],
+                                     elinewidth=1.0, linewidth=lws[m], alpha=0.6)
+                    else:
+                        plt.errorbar(states[2:], means[2:, cnt], yerr=stds[2:, cnt], fmt=fmts[m],
+                                     elinewidth=1.0, linewidth=lws[m], alpha=0.6)
+                else:
+                    plt.errorbar(states, means[:, cnt], yerr=stds[:, cnt], fmt=fmts[m],
+                                 elinewidth=1.0, linewidth=lws[m], alpha=0.6)
+                cnt += 1
+
+            plt.xlabel('Number of Latent States', fontsize=16)
+            plt.ylabel(f['measure_names'][sel[i]], fontsize=16)
+            plt.xlim([1, states[-1]])
+            plt.xticks([1,2,3,4,5],['1','2','3','4','5'])
+        if i == 2:
+           plt.legend(names, bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0., fontsize=16)
+    plt.show()
+    print "DONE"
+
+
+def plot_results_long(name):
+    import matplotlib.pyplot as plt
+
+    SHORT = True
+
+    f = np.load(name)
+    means = f['means']
+    stds = f['stds']
+    states = f['states']
+    methods = f['methods']
+    names = f['names']
+    measures = f['MEASURES']
+
+    names[0] = 'TCRFR-LBPA'
+    names[-1] = 'MoE'
+
+    plt.figure(1)
+    cnt = 0
+    fmts = ['-oc', '-ob', '--oy', '-og', '--om', '--oc', '--or', '-.or']
+    lws = [3., 3., 2., 3., 2., 2., 2., 2.]
+    if len(names)==7:
+        fmts = ['-ob', '--oy', '-og', '--om', '--oc', '--or', '-.or']
+        lws = [ 3., 2., 3., 2., 2., 2., 2.]
     for i in range(measures+1):
         if i < measures:
             plt.subplot(2, 4, i+1)
             for m in range(len(methods)):
-                plt.errorbar(states, means[:, cnt], yerr=stds[:, cnt], fmt=fmts[m],
-                             elinewidth=1.0, linewidth=lws[m], alpha=0.6)
+                if m==2:
+                    if i==5:
+                        plt.errorbar(states[2:], np.ones(len(states[2:])), yerr=np.zeros(len(states[2:])), fmt=fmts[m],
+                                     elinewidth=1.0, linewidth=lws[m], alpha=0.6)
+                    else:
+                        plt.errorbar(states[2:], means[2:, cnt], yerr=stds[2:, cnt], fmt=fmts[m],
+                                     elinewidth=1.0, linewidth=lws[m], alpha=0.6)
+                else:
+                    plt.errorbar(states, means[:, cnt], yerr=stds[:, cnt], fmt=fmts[m],
+                                 elinewidth=1.0, linewidth=lws[m], alpha=0.6)
                 cnt += 1
-            plt.xlabel('Number of Latent States', fontsize=20)
-            plt.ylabel(f['measure_names'][i], fontsize=20)
+            plt.xlabel('Number of Latent States', fontsize=16)
+            plt.ylabel(f['measure_names'][i], fontsize=16)
             plt.xlim([1, states[-1]])
+            plt.xticks([1,2,3,4,5],['1','2','3','4','5'])
         if i == measures-1:
-           plt.legend(names, bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.)
+           plt.legend(names, bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0., fontsize=16)
     plt.show()
     print "DONE"
 
@@ -705,27 +839,130 @@ def plot_frac_results(name):
     measures = f['MEASURES']
     print measures
 
+    names[0] = 'TCRFR-LBPA'
+    names[-1] = 'MoE'
+
     print names
 
     plt.figure(1)
     cnt = 0
-    fmts = ['--oy', '-or', '--oc', '--og', '--om', '--ob', '--or']
-    lws = [2., 2., 2., 2., 2., 2., 2.]
+    fmts = ['-oc', '-ob', '--oy', '-og', '--om', '--oc', '--or', '-.or']
+    lws = [3., 3., 2., 3., 2., 2., 2., 2.]
+
+    fmts = ['-ob', '--oy', '-og', '--om', '--oc', '--or', '-.or']
+    lws = [ 3., 2., 3., 2., 2., 2., 2.]
+    sel = [0,2,5,1]
+    for i in range(4):
+        cnt = sel[i]*len(methods)
+        if i < 3:
+            plt.subplot(1, 4, i+1)
+            for m in range(len(methods)):
+                plt.errorbar(train_fracs, means[:, cnt], yerr=stds[:, cnt], fmt=fmts[m],
+                             elinewidth=1.0, linewidth=lws[m], alpha=0.6)
+                cnt += 1
+            plt.xlabel('Fraction of labeled examples', fontsize=16)
+            plt.ylabel(f['measure_names'][sel[i]], fontsize=16)
+            plt.xlim([0.2, 0.8])
+            plt.xticks([0.2,0.25,0.34,0.5,0.66,0.75,0.8],['','25%','34%','50%','66%','75%',''])
+        if i == 3:
+           plt.legend(names, bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0., fontsize=16)
+           # plt.legend(names, loc=1, fontsize=18)
+    plt.show()
+    print "DONE"
+
+
+def plot_frac_results_long(name):
+    import matplotlib.pyplot as plt
+
+    f = np.load(name)
+    means = f['means']
+    stds = f['stds']
+    train_fracs = f['train_fracs']
+    methods = f['methods']
+    names = f['names']
+    measures = f['MEASURES']
+    print measures
+
+    names[0] = 'TCRFR-LBPA'
+    names[-1] = 'MoE'
+
+    print names
+
+    plt.figure(1)
+    cnt = 0
+    fmts = ['-oc', '-ob', '--oy', '-og', '--om', '--oc', '--or', '-.or']
+    lws = [3., 3., 2., 3., 2., 2., 2., 2.]
+
+    fmts = ['-ob', '--oy', '-og', '--om', '--oc', '--or', '-.or']
+    lws = [ 3., 2., 3., 2., 2., 2., 2.]
     for i in range(measures+1):
         if i < measures:
             plt.subplot(2, 4, i+1)
             for m in range(len(methods)):
-                plt.errorbar(train_fracs[::-1], means[:, cnt], yerr=stds[:, cnt], fmt=fmts[m],
+                plt.errorbar(train_fracs, means[:, cnt], yerr=stds[:, cnt], fmt=fmts[m],
                              elinewidth=1.0, linewidth=lws[m], alpha=0.6)
                 cnt += 1
-            plt.xlabel('Fraction of labeled examples', fontsize=20)
-            plt.ylabel(f['measure_names'][i], fontsize=20)
-            plt.xlim([0.0, train_fracs[-1]])
+            plt.xlabel('Fraction of labeled examples', fontsize=16)
+            plt.ylabel(f['measure_names'][i], fontsize=16)
+            plt.xlim([0.2, 0.8])
+            plt.xticks([0.2,0.25,0.34,0.5,0.66,0.75,0.8],['','25%','34%','50%','66%','75%',''])
         if i == measures-1:
-           plt.legend(names, bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.)
+           plt.legend(names, bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0., fontsize=16)
            # plt.legend(names, loc=1, fontsize=18)
     plt.show()
     print "DONE"
+
+
+def plot_data_results_short(name):
+    import matplotlib.pyplot as plt
+
+    f = np.load(name)
+    means = f['means']
+    stds = f['stds']
+    train_fracs = f['train_fracs']
+    datapoints = f['datapoints']
+    methods = f['methods']
+    names = f['names']
+    measures = f['MEASURES']
+    print measures
+    print names
+
+    names = []
+    names.append('TCRFR-QPA    ')
+    names.append('TCRFR-LBPA   ')
+
+    plt.figure(1)
+    cnt = 0
+    fmts = ['-oc', '-ob']
+    lws = [3., 3.]
+    # i = measures-1
+    # cnt = (measures-1)*2
+    #
+    # print f['measure_names'][i]
+    # print datapoints
+    # print means.shape
+    # print means[:, cnt:cnt+2]
+
+    sel = [0,2,5,6]
+    for i in range(4):
+        cnt = sel[i]*len(methods)
+        plt.subplot(1, 4, i+1)
+        for m in range(len(methods)):
+            plt.errorbar(datapoints, means[:, cnt], yerr=stds[:, cnt], fmt=fmts[m],
+                         elinewidth=1.0, linewidth=lws[m], alpha=0.6)
+            cnt += 1
+        plt.semilogx()
+        plt.xlabel('Number of examples', fontsize=16)
+        plt.ylabel(f['measure_names'][sel[i]], fontsize=16)
+        plt.xlim([90, datapoints[-1]+100])
+        plt.xticks([100,250,500,1000])
+
+        if i == 3:
+            plt.legend(names, bbox_to_anchor=(1.05, 1), loc=1, ncol=1, borderaxespad=0., fontsize=16)
+
+    plt.show()
+    print "DONE"
+
 
 def plot_data_results(name):
     import matplotlib.pyplot as plt
@@ -741,29 +978,137 @@ def plot_data_results(name):
     print measures
     print names
 
+    names = []
+    names.append('TCRFR-QPA    ')
+    names.append('TCRFR-LBPA   ')
 
     plt.figure(1)
     cnt = 0
     fmts = ['-oc', '-ob']
     lws = [3., 3.]
-    i = measures-1
-    cnt = (measures-1)*2
+    # i = measures-1
+    # cnt = (measures-1)*2
+    #
+    # print f['measure_names'][i]
+    # print datapoints
+    # print means.shape
+    # print means[:, cnt:cnt+2]
 
-    print f['measure_names'][i]
-    print datapoints
-    print means.shape
-    print means[:, cnt:cnt+2]
+    for i in range(measures+1):
+        if i < measures:
+            plt.subplot(2, 4, i+1)
+            for m in range(len(methods)):
+                plt.errorbar(datapoints, means[:, cnt], yerr=stds[:, cnt], fmt=fmts[m],
+                             elinewidth=1.0, linewidth=lws[m], alpha=0.6)
+                cnt += 1
+            plt.semilogx()
+            plt.xlabel('Number of examples', fontsize=16)
+            plt.ylabel(f['measure_names'][i], fontsize=16)
+            plt.xlim([90, datapoints[-1]+100])
+            plt.xticks([100,250,500,1000])
+
+        if i == measures-1:
+           plt.legend(names, bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0., fontsize=16)
+
+    plt.show()
+    print "DONE"
 
 
-    for m in range(len(methods)):
-        plt.errorbar(datapoints, means[:, cnt], yerr=stds[:, cnt], fmt=fmts[m],
-                     elinewidth=2.0, linewidth=lws[m], alpha=0.8)
-        cnt += 1
-    plt.semilogx()
-    plt.xlabel('Number of examples', fontsize=20)
-    plt.ylabel(f['measure_names'][i], fontsize=20)
-    plt.xlim([90, datapoints[-1]+100])
-    plt.legend(names, loc=2, fontsize=18)
+def plot_grid_results_long(name):
+    import matplotlib.pyplot as plt
 
+    f = np.load(name)
+    means = f['means']
+    stds = f['stds']
+    train_fracs = f['train_fracs']
+    methods = f['methods']
+    names = f['names']
+    measures = f['MEASURES']
+    print measures
+
+    print names
+
+    names[0] = 'TCRFR-LBPA (4)'
+    names[1] = 'TCRFR-LBPA (8)'
+    names[2] = 'TCRFR-LBPA (12)'
+    names[3] = 'TCRFR-LBPA (-)'
+
+    plt.figure(1)
+    cnt = 0
+    fmts = ['-oc', '-ob', '--oy', '-og', '--om', '--oc', '--or', '-.or']
+    lws = [3., 3., 2., 3., 2., 2., 2., 2.]
+
+    fmts = ['-ob', '-oy', '-og', '-oc', '--oc', '--or', '-.or']
+    lws = [ 3., 2., 3., 2., 2., 2., 2.]
+    all_names = []
+    for i in range(measures+1):
+        if i < measures:
+            plt.subplot(2, 4, i+1)
+            for m in range(len(methods)):
+                if m!=4:
+                    plt.errorbar(train_fracs, means[:, cnt], yerr=stds[:, cnt], fmt=fmts[m],
+                                 elinewidth=1.0, linewidth=lws[m], alpha=0.6)
+                    if i==0:
+                        all_names.append(names[m])
+                cnt += 1
+            plt.xlabel('Fraction of labeled examples', fontsize=16)
+            plt.ylabel(f['measure_names'][i], fontsize=16)
+            plt.xlim([0.2, 0.8])
+            plt.xticks([0.2,0.25,0.34,0.5,0.66,0.75,0.8],['','25%','34%','50%','66%','75%',''])
+
+        if i == measures-1:
+           plt.legend(all_names, bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0., fontsize=16)
+           # plt.legend(names, loc=1, fontsize=18)
+    plt.show()
+    print "DONE"
+
+
+def plot_grid_results(name):
+    import matplotlib.pyplot as plt
+
+    f = np.load(name)
+    means = f['means']
+    stds = f['stds']
+    train_fracs = f['train_fracs']
+    methods = f['methods']
+    names = f['names']
+    measures = f['MEASURES']
+    print measures
+
+    print names
+
+    names[0] = 'TCRFR-LBPA (4)'
+    names[1] = 'TCRFR-LBPA (8)'
+    names[2] = 'TCRFR-LBPA (12)'
+    names[3] = 'TCRFR-LBPA (-)'
+
+    plt.figure(1)
+    cnt = 0
+    fmts = ['-oc', '-ob', '--oy', '-og', '--om', '--oc', '--or', '-.or']
+    lws = [3., 3., 2., 3., 2., 2., 2., 2.]
+
+    fmts = ['-ob', '-oy', '-og', '-oc', '--oc', '--or', '-.or']
+    lws = [ 3., 2., 3., 2., 2., 2., 2.]
+    all_names = []
+    sel = [0,2,5,1]
+    for i in range(4):
+        cnt = sel[i]*len(methods)
+        if i < 3:
+            plt.subplot(1, 4, i+1)
+            for m in range(len(methods)):
+                if m!=4:
+                    plt.errorbar(train_fracs, means[:, cnt], yerr=stds[:, cnt], fmt=fmts[m],
+                                 elinewidth=1.0, linewidth=lws[m], alpha=0.6)
+                    if i==0:
+                        all_names.append(names[m])
+                cnt += 1
+            plt.xlabel('Fraction of labeled examples', fontsize=16)
+            plt.ylabel(f['measure_names'][sel[i]], fontsize=16)
+            plt.xlim([0.2, 0.8])
+            plt.xticks([0.2,0.25,0.34,0.5,0.66,0.75,0.8],['','25%','34%','50%','66%','75%',''])
+
+        if i == 3:
+           plt.legend(all_names, bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0., fontsize=16)
+           # plt.legend(names, loc=1, fontsize=18)
     plt.show()
     print "DONE"

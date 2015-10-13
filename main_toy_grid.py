@@ -19,17 +19,17 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
     # plot results arguments
-    parser.add_argument("-b", "--results_filename", help="Set results filename (default='').", default='res_toy_data_0.25.npz', type=str)
+    parser.add_argument("-b", "--results_filename", help="Set results filename (default='').", default='res_toy_grid_1.npz', type=str)
     parser.add_argument('--plot_results', dest='plot_results', action='store_true', help='Plot results (default False)')
     parser.set_defaults(plot_results=True)
     # experiment arguments
     parser.add_argument("-s", "--states", help="List of states for testing (default=3).", default='3', type=str)
-    parser.add_argument("-f", "--train_frac", help="Fraction of training exms (default=0.15)", default='0.5', type=str)
-    parser.add_argument("-d", "--datapoints", help="Amount of data points (default=1000)", default='100,200,400,600,1000', type=str)
-    parser.add_argument("-r", "--reps", help="Number of repetitions (default 10)", default=4, type=int)
-    parser.add_argument("-m", "--method_set", help="Select active method set. (default 'full')", default='lb,rr,svr,flexmix,krr,tr,tcrfr_pl,tcrfr_qp', type=str)
+    parser.add_argument("-f", "--train_frac", help="Fraction of training exms (default=0.15)", default='0.25,0.34,0.5,0.66,0.75', type=str)
+    parser.add_argument("-d", "--datapoints", help="Amount of data points (default=1000)", default=800, type=int)
+    parser.add_argument("-r", "--reps", help="Number of repetitions (default 10)", default=1, type=int)
+    parser.add_argument("-m", "--method_set", help="Select active method set. (default 'full')", default='lb,rr', type=str)
     # grid computing arguments
-    parser.add_argument("-p", "--processes", help="Number of processes (default 4)", default=1, type=int)
+    parser.add_argument("-p", "--processes", help="Number of processes (default 4)", default=6, type=int)
     parser.add_argument('--gridmap', dest='gridmap', action='store_true', help='Use gridmap (default False)')
     parser.set_defaults(gridmap=False)
     parser.add_argument('--local', dest='local', action='store_true', help="Run local? (default False)")
@@ -39,34 +39,30 @@ if __name__ == '__main__':
 
     # Plotting is done locally
     if arguments.plot_results:
-        plot_data_results(arguments.results_filename)
+        plot_grid_results(arguments.results_filename)
         exit(0)
 
+    # this is for generating a nice looking motivational example
+    (vecX, vecy, vecz) = get_1d_toy_data(num_exms=arguments.datapoints, plot=False)
 
     # generate parameter sets
-    methods, params = generate_param_set(arguments.method_set, 'data')
+    methods, params = generate_param_set(arguments.method_set, 'grid')
 
     MEASURES = 7
     REPS = arguments.reps
-
-    datapoints = np.array(arguments.datapoints.split(','), dtype=np.int).tolist()
     states = np.array(arguments.states.split(','), dtype=np.int).tolist()[0]
-    train_fracs = np.array(arguments.train_frac.split(','), dtype=np.float).tolist()[0]
-
+    train_fracs = np.array(arguments.train_frac.split(','), dtype=np.float).tolist()
     mse = {}
     results = []
     if not arguments.gridmap:
         # This is necessary for using profiler
         print("Local computations.")
-        for points in datapoints:
-            # this is for generating a nice looking motivational example
-            (vecX, vecy, vecz) = get_1d_toy_data(num_exms=points, plot=False)
-
-            if points not in mse:
-                mse[points] = np.zeros((REPS, MEASURES*len(methods)))
+        for train_frac in train_fracs:
+            if train_frac not in mse:
+                mse[train_frac] = np.zeros((REPS, MEASURES*len(methods)))
             for n in range(REPS):
-                (names, res) = main_run(methods, params, vecX, vecy, vecz, train_fracs, 0.1, states, False)
-                perf = mse[points]
+                (names, res) = main_run(methods, params, vecX, vecy, vecz, train_frac, 0.1, states, False)
+                perf = mse[train_frac]
                 cnt = 0
                 for p in range(MEASURES):
                     for m in range(len(methods)):
@@ -99,18 +95,18 @@ if __name__ == '__main__':
                     cnt += 1
 
     measure_names = res[0][1]
-    means = np.zeros((len(datapoints), MEASURES*len(methods)))
-    stds = np.zeros((len(datapoints), MEASURES*len(methods)))
+    means = np.zeros((len(train_fracs), MEASURES*len(methods)))
+    stds = np.zeros((len(train_fracs), MEASURES*len(methods)))
 
     print '\n'
     print '================================================ FINAL RESULT'
     idx = 0
-    for key in datapoints:
+    for key in train_fracs:
         means[idx, :] = np.mean(mse[key], axis=0)
         stds[idx, :] = np.std(mse[key], axis=0)
 
         print '------------------------------------------------'
-        print 'Datapoints:(',key, ')  States(',states,')  Train-Frac(',train_fracs,')'
+        print 'Train_Frac(',key, ')  States(',states,')'
         m = means[idx, :].reshape((len(names), MEASURES), order='F')
         s = stds[idx, :].reshape((len(names), MEASURES), order='F')
         print ''.ljust(44), '', res[0][1]
@@ -125,9 +121,8 @@ if __name__ == '__main__':
     print '================================================ FINAL RESULT END'
 
     # save results
-    np.savez('res_data_50p_full.npz'.format(train_fracs), MEASURES=MEASURES, methods=methods, params=params,
-             means=means, stds=stds, states=states, measure_names=measure_names, names=names,
-             train_fracs=train_fracs, datapoints=datapoints)
+    np.savez('res_toy_grid_1.npz'.format(train_fracs), MEASURES=MEASURES, methods=methods, params=params,
+             means=means, stds=stds, states=states, measure_names=measure_names, names=names, train_fracs=train_fracs)
 
     # ..and stop
     print('Finish!')
