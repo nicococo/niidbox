@@ -20,9 +20,9 @@ class TCRFR_QP(AbstractTCRFR):
     phis = None  # copy of the current joint feature map, corresponding to self.latent
 
     def __init__(self, data, labels, label_inds, unlabeled_inds, states, A,
-                 reg_theta=0.5, reg_lambda=0.001, reg_gamma=1.0, trans_regs=[1.0, 1.0], trans_sym=[1]):
+                 reg_theta=0.5, reg_lambda=0.001, reg_gamma=1.0, trans_regs=[1.0, 1.0], trans_sym=[1], verbosity_level=1):
         AbstractTCRFR.__init__(self, data, labels, label_inds, unlabeled_inds, states, A,
-                 reg_theta, reg_lambda, reg_gamma, trans_regs, trans_sym)
+                 reg_theta, reg_lambda, reg_gamma, trans_regs, trans_sym, verbosity_level=verbosity_level)
         # pre-compute qp relaxation constraints
         self.qp_relax_init()
 
@@ -165,7 +165,8 @@ class TCRFR_QP(AbstractTCRFR):
             # 3. update expectation
             all_samples[:, num_iter] = psi_cache[:, ind]
             all_scores[num_iter] = scores[ind]
-            print('{0} - score={1}'.format(num_iter, scores[ind]))
+            if self.verbosity_level>=2:
+                print('{0} - score={1}'.format(num_iter, scores[ind]))
             num_iter += 1
 
         all_scores /= np.sum(all_scores)
@@ -186,7 +187,8 @@ class TCRFR_QP(AbstractTCRFR):
         edges = len(self.E)
         dims = edges*states*states + len(self.V)*states
         offset = edges*states*states
-        print('Init constraint matrices for relaxed QP with {0} marginal and {1} vertex constraints.'.format(2*edges*states, len(self.V)))
+        if self.verbosity_level>=1:
+            print('Init constraint matrices for relaxed QP with {0} marginal and {1} vertex constraints.'.format(2*edges*states, len(self.V)))
         num_constr = 2*edges*states + len(self.V)
         A = spmatrix([0.0],[0],[0],(num_constr, dims))
         b = matrix(0.0, (num_constr, 1))
@@ -220,7 +222,8 @@ class TCRFR_QP(AbstractTCRFR):
         # lower bounds
         self.qp_ineq_G = spmatrix(-1.0, range(dims), range(dims))
         self.qp_ineq_h = matrix(0.0, (dims, 1))
-        print('There are {0} marginal contraints and {1} vertex constraints.'.format(num_margs, len(b)-num_margs))
+        if self.verbosity_level>=1:
+            print('There are {0} marginal contraints and {1} vertex constraints.'.format(num_margs, len(b)-num_margs))
 
 
     def qp_relax_max(self, u, v, theta):
@@ -252,7 +255,8 @@ class TCRFR_QP(AbstractTCRFR):
         max_states = np.zeros(vertices, dtype='i')
 
         # error check
-        print solution['status']
+        if self.verbosity_level>=2:
+            print solution['status']
         if res is None:
             print('QP optimization did not finish (status):')
             print 'max P - ', max(P), ' - min P - ', min(P)

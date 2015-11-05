@@ -11,6 +11,8 @@ class AbstractTCRFR(object):
 
         Written by Nico Goernitz, TU Berlin, 2015
     """
+    verbosity_level = 0     # (0: no prints, 1:print some globally interesting stuff (iterations etc), 2:print debugs
+
     data = None             # (either matrix or list) data
     labels = None           # (list or matrix or array) labels
     label_inds = None       # index of corresponding data object for each label
@@ -61,7 +63,10 @@ class AbstractTCRFR(object):
 
 
     def __init__(self, data, labels, label_inds, unlabeled_inds, states, A,
-                 reg_theta=0.5, reg_lambda=0.001, reg_gamma=1.0, trans_regs=[1.0], trans_sym=[1]):
+                 reg_theta=0.5, reg_lambda=0.001, reg_gamma=1.0, trans_regs=[1.0], trans_sym=[1], verbosity_level=1):
+        # set verbosity
+        self.verbosity_level = verbosity_level
+
         # sparse connectivity matrix (numbers indicate the type of connection = id of transition matrix)
         self.A = A
         (verts, foo) = A.size
@@ -104,7 +109,6 @@ class AbstractTCRFR(object):
                     self.E[idx, :] = (s, n)
                     idx += 1
 
-
         # neighbor list for all vertices
         max_conn = max(A*matrix(1.0, (A.size[0],1)))
 
@@ -143,7 +147,8 @@ class AbstractTCRFR(object):
         self.init_Q()
 
         # print some stats
-        self.print_stats()
+        if self.verbosity_level >= 1:
+            self.print_stats()
 
     def print_stats(self):
         # output some stats
@@ -291,8 +296,9 @@ class AbstractTCRFR(object):
             old_obj = obj
             obj = self.reg_theta * obj_regression + (1.0 - self.reg_theta) * obj_crf
             rel = np.abs((old_obj - obj) / obj)
-            print('Iter={0} regr={1:4.2f} crf={2:4.2f}; objective={3:4.2f} rel={4:2.4f} lats={5}'.format(
-                cnt_iter, obj_regression, obj_crf, obj, rel, np.unique(self.latent).size))
+            if self.verbosity_level >= 1:
+                print('Iter={0} regr={1:4.2f} crf={2:4.2f}; objective={3:4.2f} rel={4:2.4f} lats={5}'.format(
+                    cnt_iter, obj_regression, obj_crf, obj, rel, np.unique(self.latent).size))
             if best_sol[1] >= obj:
                 best_sol = [cnt_iter, obj, u, v, self.latent]
                 print('*')
@@ -302,20 +308,19 @@ class AbstractTCRFR(object):
                 return False
             cnt_iter += 1
         iter, _, self.u, self.v, self.latent = best_sol
-        print('Take best solution from iteration {0}/{1}.'.format(iter, cnt_iter-1))
-
         # print
-        vup = self.unpack_v(self.v)
+        if self.verbosity_level >= 1:
+            print('Take best solution from iteration {0}/{1}.'.format(iter, cnt_iter-1))
 
-        cnt = 0
-        for i in range(self.trans_n):
-            print i
-            print vup[cnt:cnt+self.S*self.S].reshape((self.S, self.S), order='C')
-            cnt += self.trans_d_full
-
-        print 'Emissions:'
-        print vup[cnt:]
-
+        if self.verbosity_level >= 2:
+            vup = self.unpack_v(self.v)
+            cnt = 0
+            for i in range(self.trans_n):
+                print i
+                print vup[cnt:cnt+self.S*self.S].reshape((self.S, self.S), order='C')
+                cnt += self.trans_d_full
+            print 'Emissions:'
+            print vup[cnt:]
         return is_converged
 
     def predict(self, lats=None):

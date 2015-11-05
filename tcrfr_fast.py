@@ -18,9 +18,10 @@ class TCRFR_Fast(AbstractTCRFR):
     fix_lbl_map = False  # fix the labeled data in the inference (only infer once after calling map_inference)?
 
     def __init__(self, data, labels, label_inds, unlabeled_inds, states, A,
-                 reg_theta=0.5, reg_lambda=0.001, reg_gamma=1.0, trans_regs=[1.0, 1.0], trans_sym=[1], lbl_weight=1.0):
+                 reg_theta=0.5, reg_lambda=0.001, reg_gamma=1.0, trans_regs=[1.0, 1.0],
+                 trans_sym=[1], lbl_weight=1.0, verbosity_level=1):
         AbstractTCRFR.__init__(self, data, labels, label_inds, unlabeled_inds, states, A,
-                 reg_theta, reg_lambda, reg_gamma, trans_regs, trans_sym)
+                 reg_theta, reg_lambda, reg_gamma, trans_regs, trans_sym, verbosity_level=verbosity_level)
 
         # labeled examples get an extra weight (parameter)
         for ind in self.V:
@@ -71,7 +72,8 @@ class TCRFR_Fast(AbstractTCRFR):
                 lats = lats_b
 
             iter += 1
-            print "(", iter, "): ", change
+            if self.verbosity_level>=2:
+                print "(", iter, "): ", change
             map_objs = map_objs_bak.copy()
 
         # highest value first
