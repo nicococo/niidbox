@@ -626,7 +626,6 @@ def generate_param_set(set_name = 'full', exp_name=''):
     tcrfr_k2 = [18] # 5%
     tcrfr_k2 = [4] # 5%
     tcrfr_k2 = [4, 12] # 20%
-
     tcrfr_neighb = [10.]
 
     if exp_name=='data':
