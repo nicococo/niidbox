@@ -6,6 +6,7 @@ import mosek as msk
 
 from abstract_tcrfr import AbstractTCRFR
 
+
 class TCRFR_QP(AbstractTCRFR):
     """ Pairwise Conditional Random Field for transductive regression.
     """

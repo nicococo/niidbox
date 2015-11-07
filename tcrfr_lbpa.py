@@ -1,14 +1,8 @@
 __author__ = 'nicococo'
 import numpy as np
-from cvxopt import matrix, spmatrix, sparse
-import cvxopt.solvers as solver
-import mosek as msk
-
-import scipy.sparse as sparse
-
 from abstract_tcrfr import AbstractTCRFR
 
-class TCRFR_Fast(AbstractTCRFR):
+class TCRFR_lbpa(AbstractTCRFR):
     """ Pairwise Conditional Random Field for transductive regression.
     """
     psi = None  # copy of the current joint feature map, corresponding to self.latent
