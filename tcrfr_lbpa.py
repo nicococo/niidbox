@@ -7,7 +7,6 @@ class TCRFR_lbpa(AbstractTCRFR):
     """
     psi = None  # copy of the current joint feature map, corresponding to self.latent
     phis = None  # copy of the current joint feature map, corresponding to self.latent
-    sol_dot_psi = None
 
     fix_lbl_map = False  # fix the labeled data in the inference (only infer once after calling map_inference)?
 
@@ -23,6 +22,36 @@ class TCRFR_lbpa(AbstractTCRFR):
                 if self.N[ind, i] in self.label_inds and self.N_weights[ind, i]>0.00001:
                     self.N_weights[ind, i] = lbl_weight
 
+    def log_partition(self, v):
+        # This function calculates/estimates the log-partition function by
+        # pseudolikelihood approximation. Therefore, we assume the states for
+        # the neighbors fixed (e.g. from previous map inference).
+        #
+        # log Z = log \sum_z exp( <v,\Psi(X,z)> )    # intractable even for small z
+        #
+        # Hence, for a node i in state s given the neighbors j with fixed states n_j:
+        #       f(i, s) = f_em(i, s) + sum_j f_trans(i=s, j=n_j)
+        #
+
+        # self.N is a (Nodes x max_connection_count) Matrix containing the indices for each neighbor
+        # of each node (indices are 0 for non-neighbors, therefore N_weights is need to multiply this
+        # unvalid value with 0.
+        yn = self.latent[self.N] # (nodex x max_connection_count) latent state matrix
+        v_em = v[self.trans_n*self.trans_d_full:].reshape((self.feats, self.S), order='F')
+        f_inner = np.zeros((self.S, self.samples))
+        for s1 in range(self.S):
+            foo = np.zeros(self.samples)
+            for s2 in range(self.S):
+                n_cnts = np.sum(np.array((yn == s2), dtype='d')*self.N_weights, axis=1)
+                foo += v[self.trans_mtx2vec_full[s1, s2]]*n_cnts
+            f_inner[s1, :] = v_em[:, s1].dot(self.data) + foo
+        # exp-trick (to prevent NAN because of large numbers): log[sum_i exp(x_i-a)]+a = log[sum_i exp(x_i)]
+        max_score = np.max(f_inner)
+        f_inner = np.sum(np.exp(f_inner - max_score), axis=0)
+        foo = np.sum(np.log(f_inner) + max_score)
+        if np.isnan(foo) or np.isinf(foo):
+            print('TCRFR Pairwise Potential Model: the log_partition is NAN or INF!!')
+        return foo
 
     def map_inference(self, u, vn):
         theta = self.reg_theta
@@ -56,6 +85,7 @@ class TCRFR_lbpa(AbstractTCRFR):
                     add += vn[self.trans_mtx2vec_full[s, s2]]*n_cnts
                 map_objs[s, :] += add
 
+            # if this is true, then only change the latent states for unlabeled examples
             if self.fix_lbl_map:
                 lats_b = np.argmax(map_objs[:, self.unlabeled_inds], axis=0)
                 change = np.sum(lats!=lats_b)/float(lats.size)
@@ -81,55 +111,3 @@ class TCRFR_lbpa(AbstractTCRFR):
         self.sol_dot_psi = vn.T.dot(psi)
         # print np.unique(self.latent)
         return phis, psi
-
-    def log_partition(self, v):
-        # pseudolikelihood approximation = fix the neighbors
-        yn = self.latent[self.N]
-        v_em = v[self.trans_n*self.trans_d_full:].reshape((self.feats, self.S), order='F')
-        f_inner = np.zeros((self.S, self.samples))
-        for s in range(self.S):
-            foo = np.zeros(self.samples)
-            for s2 in range(self.S):
-                n_cnts = np.sum(np.array((yn[:,:] == s2), dtype='d')*self.N_weights[:,:], axis=1)
-                foo += v[self.trans_mtx2vec_full[s, s2]]*n_cnts
-            f_inner[s, :] = v_em[:, s].dot(self.data) + foo
-        max_score = np.max(f_inner)
-        f_inner = np.sum(np.exp(f_inner - max_score), axis=0)
-        foo = np.sum(np.log(f_inner) + max_score)
-        if np.isnan(foo) or np.isinf(foo):
-            print 'TCRFR Pairwise Potential Model: the log_partition is NAN or INF!!'
-        return foo
-
-    def log_partition_derivative(self, v):
-        v_trans = v[:self.S*self.S].reshape((self.S, self.S), order='C')
-        v_em = v[self.trans_n*self.trans_d_full:].reshape((self.feats, self.S), order='C')
-
-        # (A)
-        f = np.zeros((self.S, self.samples))
-        for s in range(self.S):
-            w = v_trans[s, self.latent]
-            foo = np.zeros(self.samples)
-            #for n in range(len(self.N)):
-            #    foo[n] = np.sum(w[self.N[n]])
-            f[s, :] = np.exp(v_em[:, s].dot(self.data) + foo)
-        sum_f = np.sum(f, axis=0)
-
-        # (B)
-        for s in range(self.S):
-            f[s, :] /= sum_f
-
-        # (C)
-        phis = np.zeros((self.get_num_compressed_dims(), self.samples))
-        for s in range(self.S):
-            foo = np.zeros(self.samples)
-            for n in range(len(self.N)):
-                foo[n] = np.sum(self.N[n]==s)
-            phis[s, :] = foo * f[s, :]
-
-        idx = self.trans_n*self.trans_d_full
-        for s in range(self.S):
-            for feat in range(self.feats):
-                phis[idx, :] = self.data[feat, :] * f[s, :]
-                idx += 1
-        return np.sum(phis, axis=1)
-

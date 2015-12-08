@@ -1,7 +1,9 @@
 from cvxopt.base import matrix
 import numpy as np
+
 from scipy import optimize as op
 import sklearn.cluster as cl
+import time
 
 from numba import autojit
 
@@ -63,7 +65,6 @@ class AbstractTCRFR(object):
     trans_d_sym = 0   # (scalar) number of values that need to be stored for a symmetric transition matrix
     trans_d_full = 0  # (scalar) number of values that need to be stored for a full transition matrix
 
-
     def __init__(self, data, labels, label_inds, unlabeled_inds, states, A,
                  reg_theta=0.5, reg_lambda=0.001, reg_gamma=1.0, trans_regs=[1.0], trans_sym=[1], verbosity_level=1):
         # set verbosity
@@ -100,30 +101,30 @@ class AbstractTCRFR(object):
         n_sym_mtx = np.sum(self.trans_sym)
         self.trans_total_dims = np.int(n_sym_mtx * self.trans_d_sym + (self.trans_n - n_sym_mtx) * self.trans_d_full)
 
-        # construct edge matrix
-        num_edges = int((matrix(1.0, (1, A.size[0]))*A*matrix(1.0, (A.size[0], 1)))[0]/2)
         self.V = range(verts)
-        idx = 0
-        self.E = np.zeros((num_edges, 3), dtype=np.int)
-        for s in range(verts):
-            for n in range(s, verts):
-                if A[s, n] > 0:
-                    self.E[idx, :] = (s, n, A[s, n])
-                    idx += 1
-
-        # neighbor list for all vertices
-        max_conn = max(A*matrix(1.0, (A.size[0],1)))
-
+        # neighbor array (and weights {0,1} for each vertex
+        max_conn = np.int(max(self.A*matrix(1, (self.A.size[0], 1), tc='i')))
         print max_conn
         self.N = np.zeros((len(self.V), max_conn), dtype='i')
-        self.N_weights = np.ones((len(self.V), max_conn), dtype='i')
-        for ind in self.V:
-            ninds = np.where(np.array(matrix(A[ind, :]), dtype='i').reshape(A.size[0]) >= 1)[0]
-            lens = ninds.size
-            self.N[ind, :lens] = ninds
-            if lens < max_conn:
-                self.N[ind, lens:] = 0
-                self.N_weights[ind, lens:] = 0.0
+        self.N_weights = np.zeros((len(self.V), max_conn), dtype='i')
+        N_idx = np.zeros(len(self.V), dtype='i')
+
+        # construct edge matrix
+        num_edges = int((matrix(1.0, (1, A.size[0]))*A*matrix(1.0, (A.size[0], 1)))[0]/2)
+        self.E = np.zeros((num_edges, 3), dtype=np.int)
+        t = time.time()
+        AI = A.I
+        AJ = A.J
+        AV = A.V
+        for idx in range(num_edges):
+            s = AI[idx]
+            n = AJ[idx]
+            self.E[idx, :] = (s, n, AV[idx])
+            # update neighbors
+            self.N[s, N_idx[s]] = n
+            self.N_weights[s, N_idx[s]] = 1
+            N_idx[s] += 1
+        print time.time()-t
 
         # regularization constants
         self.reg_lambda = reg_lambda
