@@ -2,7 +2,9 @@ __author__ = 'nicococo'
 import numpy as np
 from cvxopt import matrix, spmatrix, sparse
 import cvxopt.solvers as solver
-import mosek as msk
+# import mosek as msk  # can not be imported from anaconda environment
+
+from numba import autojit
 
 from abstract_tcrfr import AbstractTCRFR
 
@@ -27,65 +29,41 @@ class TCRFR_QP(AbstractTCRFR):
         # pre-compute qp relaxation constraints
         self.qp_relax_init()
 
-
     def map_inference(self, u, v):
-        theta = self.reg_theta
-        # highest value first
         if self.latent is not None:
             self.latent_prev = self.latent
-        self.latent = self.qp_relax_max(u, v, theta)
-        self.phis, self.psi = self.get_joint_feature_maps()
-        return self.phis, self.psi
-
-    def log_partition_bak2(self, v):
-        #if self.v is None:
-        #    return 0.0
-        return v.dot(self.get_crf_joint_feature_map())
-
-    def log_partition_derivative_bak2(self, v):
-        #if self.v is None:
-        #    return np.zeros(self.get_num_dims())
-        return self.get_crf_joint_feature_map()
+        self.latent = self.qp_relax_max(u, v, self.reg_theta)
+        return self.get_joint_feature_maps()
 
     def log_partition(self, v):
-        # pseudolikelihood approximation = fix the neighbors
-        yn = self.latent[self.N]
+        # This function calculates/estimates the log-partition function by
+        # pseudolikelihood approximation. Therefore, we assume the states for
+        # the neighbors fixed (e.g. from previous map inference).
+        #
+        # log Z = log \sum_z exp( <v,\Psi(X,z)> )    # intractable even for small z
+        #
+        # Hence, for a node i in state s given the neighbors j with fixed states n_j:
+        #       f(i, s) = f_em(i, s) + sum_j f_trans(i=s, j=n_j)
+        #
+        
+        # self.N is a (Nodes x max_connection_count) Matrix containing the indices for each neighbor
+        # of each node (indices are 0 for non-neighbors, therefore N_weights is need to multiply this
+        # unvalid value with 0.
+        yn = self.latent[self.N] # (nodex x max_connection_count) latent state matrix
         v_em = v[self.trans_n*self.trans_d_full:].reshape((self.feats, self.S), order='F')
         f_inner = np.zeros((self.S, self.samples))
         for s1 in range(self.S):
             foo = np.zeros(self.samples)
             for s2 in range(self.S):
-                n_cnts = np.sum(np.array((yn[:,:] == s2), dtype='d')*self.N_weights[:,:], axis=1)
+                n_cnts = np.sum(np.array((yn == s2), dtype='d')*self.N_weights, axis=1)
                 foo += v[self.trans_mtx2vec_full[s1, s2]]*n_cnts
             f_inner[s1, :] = v_em[:, s1].dot(self.data) + foo
+        # exp-trick (to prevent NAN because of large numbers): log[sum_i exp(x_i-a)]+a = log[sum_i exp(x_i)]
         max_score = np.max(f_inner)
         f_inner = np.sum(np.exp(f_inner - max_score), axis=0)
         foo = np.sum(np.log(f_inner) + max_score)
         if np.isnan(foo) or np.isinf(foo):
-            print 'TCRFR Pairwise Potential Model: the log_partition is NAN or INF!!'
-        return foo
-
-    def log_partition_old(self, v):
-        # pseudolikelihood approximation = fix the neighbors
-        v_trans = []
-        cnt = 0
-        for i in range(self.trans_n):
-            v_trans.append(v[cnt:cnt+self.S*self.S].reshape((self.S, self.S), order='C'))
-            cnt += self.trans_d_full
-
-        v_em = v[self.trans_n*self.trans_d_full:].reshape((self.feats, self.S), order='F')
-        f_inner = np.zeros((self.S, self.samples))
-        for s in range(self.S):
-            w = v_trans[0][s, self.latent]
-            foo = np.zeros(self.samples)
-            for n in range(len(self.N)):
-                foo[n] = np.sum(w[self.N[n]])
-            f_inner[s, :] = v_em[:, s].dot(self.data) + foo
-        max_score = np.max(f_inner)
-        f_inner = np.sum(np.exp(f_inner - max_score), axis=0)
-        foo = np.sum(np.log(f_inner) + max_score)
-        if np.isnan(foo) or np.isinf(foo):
-            print 'TCRFR Pairwise Potential Model: the log_partition is NAN or INF!!'
+            print('TCRFR Pairwise Potential Model: the log_partition is NAN or INF!!')
         return foo
 
     def log_partition_derivative(self, v):
@@ -242,7 +220,7 @@ class TCRFR_QP(AbstractTCRFR):
         # convert u to Q
         P, q = self.get_qp_params(u, v, theta)
 
-        solver.options['MOSEK'] = {msk.iparam.log: 0}
+        # solver.options['MOSEK'] = {msk.iparam.log: 0}   # cannot be called from anaconda environment
         solution = solver.qp(P, q, G, h, A, b, solver='mosek')
         res = solution['x']
 
