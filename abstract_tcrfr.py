@@ -7,6 +7,8 @@ import time
 
 from numba import autojit
 
+from tools import profile
+
 __author__ = 'nicococo'
 
 
@@ -43,6 +45,7 @@ class AbstractTCRFR(object):
     E = None  # list of tupels of transitions from edge i to edge j and transition matrix type
 
     N = None  # matrix of neighbors for each vertex
+    N_inv = None  # N[j, N_inv[i,j]] = i
     N_weights = None
 
     Q = None  # (dims x dims) Crf regularization matrix
@@ -106,6 +109,7 @@ class AbstractTCRFR(object):
         max_conn = np.int(max(self.A*matrix(1, (self.A.size[0], 1), tc='i')))
         print max_conn
         self.N = np.zeros((len(self.V), max_conn), dtype='i')
+        self.N_inv = np.zeros((len(self.V), max_conn), dtype='i')
         self.N_weights = np.zeros((len(self.V), max_conn), dtype='i')
         N_idx = np.zeros(len(self.V), dtype='i')
 
@@ -116,14 +120,27 @@ class AbstractTCRFR(object):
         AI = A.I
         AJ = A.J
         AV = A.V
-        for idx in range(num_edges):
+        num_entries = len(A.I)
+        assert 2*num_edges == num_entries  # is assumed to be twice the number of edges!
+        cnt = 0
+        for idx in range(num_entries):
             s = AI[idx]
             n = AJ[idx]
-            self.E[idx, :] = (s, n, AV[idx])
-            # update neighbors
-            self.N[s, N_idx[s]] = n
-            self.N_weights[s, N_idx[s]] = 1
-            N_idx[s] += 1
+            if s < n:
+                self.E[cnt, :] = (s, n, AV[cnt])
+                cnt += 1
+                # update neighbors
+                self.N_inv[s, N_idx[s]] = N_idx[n]     # N[j, N_inv[i,j]] = i
+                self.N_inv[n, N_idx[n]] = N_idx[s]     # N[j, N_inv[i,j]] = i
+
+                self.N[s, N_idx[s]] = n
+                self.N[n, N_idx[n]] = s
+
+                self.N_weights[s, N_idx[s]] = 1
+                self.N_weights[n, N_idx[n]] = 1
+
+                N_idx[s] += 1
+                N_idx[n] += 1
         print time.time()-t
 
         # regularization constants
@@ -156,6 +173,7 @@ class AbstractTCRFR(object):
         if self.verbosity_level >= 1:
             self.print_stats()
 
+    @profile
     def print_stats(self):
         # output some stats
         n_sym_mtx = np.sum(self.trans_sym)
@@ -185,6 +203,7 @@ class AbstractTCRFR(object):
         print('===============================')
         print('')
 
+    @profile
     def init_Q(self):
         # build the crf regularization matrix
         dims = self.trans_n*self.trans_d_full + self.S*self.feats

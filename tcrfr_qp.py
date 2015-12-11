@@ -7,7 +7,7 @@ import cvxopt.solvers as solver
 from numba import autojit
 
 from abstract_tcrfr import AbstractTCRFR
-
+from tools import profile
 
 class TCRFR_QP(AbstractTCRFR):
     """ Pairwise Conditional Random Field for transductive regression.
@@ -29,12 +29,14 @@ class TCRFR_QP(AbstractTCRFR):
         # pre-compute qp relaxation constraints
         self.qp_relax_init()
 
+    @profile
     def map_inference(self, u, v):
         if self.latent is not None:
             self.latent_prev = self.latent
         self.latent = self.qp_relax_max(u, v, self.reg_theta)
         return self.get_joint_feature_maps()
 
+    @profile
     def log_partition(self, v):
         # This function calculates/estimates the log-partition function by
         # pseudolikelihood approximation. Therefore, we assume the states for
@@ -45,7 +47,7 @@ class TCRFR_QP(AbstractTCRFR):
         # Hence, for a node i in state s given the neighbors j with fixed states n_j:
         #       f(i, s) = f_em(i, s) + sum_j f_trans(i=s, j=n_j)
         #
-        
+
         # self.N is a (Nodes x max_connection_count) Matrix containing the indices for each neighbor
         # of each node (indices are 0 for non-neighbors, therefore N_weights is need to multiply this
         # unvalid value with 0.
@@ -154,6 +156,7 @@ class TCRFR_QP(AbstractTCRFR):
             grad += all_scores[i]*all_samples[:, i]
         return grad
 
+    @profile
     def qp_relax_init(self):
         """ Pre-calulate the equality and inequality constants for the
             linear program relaxation.
@@ -204,7 +207,7 @@ class TCRFR_QP(AbstractTCRFR):
         if self.verbosity_level>=1:
             print('There are {0} marginal contraints and {1} vertex constraints.'.format(num_margs, len(b)-num_margs))
 
-
+    @profile
     def qp_relax_max(self, u, v, theta):
         """ Estimate the MAP by relaxing the integer quadratic program
             to a quadratic program (QP):
@@ -303,8 +306,7 @@ class TCRFR_QP(AbstractTCRFR):
         print 'Quadratic part only: ', obj_int_qp - y2, ' - ', 0.5*x.T.dot(P.dot(x))
         print obj_int_lp + obj_int_qp
 
-
-
+    @profile
     def get_qp_params(self, param_u, param_v, theta):
         print param_v.size
         states = self.S

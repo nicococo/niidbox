@@ -1,6 +1,7 @@
 import numpy as np
-from abstract_tcrfr import AbstractTCRFR
 
+from abstract_tcrfr import AbstractTCRFR
+from tools import profile
 
 class TCRFR_BF(AbstractTCRFR):
     """ Pairwise Conditional Random Field for transductive regression.
@@ -19,6 +20,7 @@ class TCRFR_BF(AbstractTCRFR):
         AbstractTCRFR.__init__(self, data, labels, label_inds, unlabeled_inds, states, A,
                  reg_theta, reg_lambda, reg_gamma, trans_regs, trans_sym, verbosity_level=verbosity_level)
 
+    @profile
     def _direct_computation(self, u, v):
         # keep track of the best parameters
         max_states = np.zeros(self.samples)
@@ -60,16 +62,19 @@ class TCRFR_BF(AbstractTCRFR):
                 max_psi = psi
         return max_obj, max_states, max_psi, np.float64(np.log(part_value)), part_grad.reshape((part_grad.size))
 
+    @profile
     def map_inference(self, u, v):
         if self.latent is not None:
             self.latent_prev = self.latent
         _, self.latent, _, _, _ = self._direct_computation(self.u, v)
         return self.get_joint_feature_maps()
 
+    @profile
     def log_partition(self, v):
         _, _, _, logZ, _ = self._direct_computation(self.u, v)
         return logZ
 
+    @profile
     def log_partition_derivative(self, v):
         _, _, _, _, dZ = self._direct_computation(self.u, v)
         return dZ
