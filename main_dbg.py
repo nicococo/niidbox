@@ -19,7 +19,7 @@ def get_test_data(exms, train):
     print x.shape
     # ...and corresponding transition matrix
     A = np.zeros((exms, exms), dtype=np.int32)
-    for j in range(1, 3):
+    for j in range(1, 2):
         for i in range(j, exms):
             A[i-j, i] = 1
             A[i, i-j] = 1
@@ -34,11 +34,14 @@ def get_test_data(exms, train):
 
 
 def test_bf():
-    lbpa, qp, bf, x, y, z = get_test_data(10, 2)
+    lbpa, qp, bf, x, y, z = get_test_data(14, 6)
     # lbpa.fix_lbl_map = True
-    lbpa.fit(use_grads=False)
+    # lbpa.fit(use_grads=False)
+    # qp.fit(use_grads=False)
     qp.fit(use_grads=False)
-    bf.fit(use_grads=True)
+    bf.map_inference(qp.u, lbpa.unpack_v(qp.v))
+    lbpa.map_inference(qp.u, lbpa.unpack_v(qp.v))
+
     print 'STATES ------------------------'
     foo = np.zeros(lbpa.samples, dtype=np.int8)
     foo[lbpa.label_inds] = 1
@@ -47,6 +50,7 @@ def test_bf():
     print 'BF     = ', bf.latent
     print 'QP     = ', qp.latent
     print 'LBPA   = ', lbpa.latent
+
 
 def test_constr_speed():
     exms = 2000
@@ -82,7 +86,7 @@ def test_lbp():
     print x.shape
     # ...and corresponding transition matrix
     A = np.zeros((exms, exms), dtype=np.int32)
-    for j in range(1, 4):
+    for j in range(1, 2):
         for i in range(j, exms):
             A[i-j, i] = 1
             A[i, i-j] = 1
@@ -110,9 +114,9 @@ def test_lbp():
 
 
 if __name__ == '__main__':
-    # test_bf()
+    test_bf()
     # test_constr_speed()
-    test_lbp()
+    # test_lbp()
 
     #
     # lbpa, qp, x, y, z = get_test_data(2000, 100)

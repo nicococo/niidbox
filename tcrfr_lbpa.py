@@ -182,34 +182,33 @@ def _extern_map_lbp(data, labels, label_inds, unlabeled_inds, N, N_inv, N_weight
                         foo[t] = unary[t, i] + (1.0 - theta)*(v[trans_mtx2vec_full[s, t]] + sum_msg)
                     msgs[i, j, s] = np.max(foo)
                     psis[i, j, s] = np.argmax(foo)
-                msgs[i, j, :] -= np.max((msgs[i, j, :]))  # normalization of the new message
+                msgs[i, j, :] -= np.max((msgs[i, j, :]))  # normalization of the new message from i->j
                 change += np.sum(np.abs(msgs[i,j,:]-bak))
-
         iter += 1
         print change
 
-    i = samples/2
+    i = samples-1
     num_neighs = np.sum(N_weights[i, :])
     neighs = N[i, :num_neighs]
     foo = np.zeros(states)
     for t in range(states):
-        # ugly, ugly, ugly and slow, mega-slow
         sum_msg = 0.
         for n1 in range(num_neighs):
             sum_msg += msgs[neighs[n1], N_inv[i, n1], t]
         foo[t] = unary[t, i] + (1.0 - theta)*sum_msg
 
-    return backtracking(i, latent, np.argmax(foo), psis, N, N_weights)
+    return backtracking(i, latent, np.argmax(foo), psis, N, N_inv, N_weights)
 
 
-def backtracking(i, latent, fixed, psis, N, N_weights):
+@autojit
+def backtracking(i, latent, fixed, psis, N, N_inv, N_weights):
 
     if latent[i]>-1:
         return latent
 
     latent[i] = fixed
     for j in range(np.sum(N_weights[i, :])):
-        j_fixed = psis[i, j, fixed]
-        latent = backtracking(N[i, j], latent, j_fixed, psis, N, N_weights)
+        j_fixed = psis[N[i,j], N_inv[i, j], fixed]
+        latent = backtracking(N[i, j], latent, j_fixed, psis, N, N_inv, N_weights)
 
     return latent

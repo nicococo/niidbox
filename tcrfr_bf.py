@@ -48,6 +48,7 @@ class TCRFR_BF(AbstractTCRFR):
             phis, psi = self.get_joint_feature_maps(latent=states)  # get the corresponding crf feature map
             # map inference and objective functions
             obj_crf = -v.T.dot(psi)
+
             obj_rr = y - u.T.dot(phis[:, self.label_inds]).T
             obj_rr = 0.5 * np.sum(obj_rr*obj_rr)
             obj = -(self.reg_theta*obj_rr + (1.-self.reg_theta)*obj_crf)
