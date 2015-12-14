@@ -34,13 +34,15 @@ def get_test_data(exms, train):
 
 
 def test_bf():
-    lbpa, qp, bf, x, y, z = get_test_data(14, 10)
+    lbpa, qp, bf, x, y, z = get_test_data(14, 6)
     # lbpa.fix_lbl_map = True
     # lbpa.fit(use_grads=False)
     # qp.fit(use_grads=False)
     qp.fit(use_grads=False)
     bf.map_inference(qp.u, lbpa.unpack_v(qp.v))
     lbpa.map_inference(qp.u, lbpa.unpack_v(qp.v))
+
+    lbpa.fit()
 
     print 'STATES ------------------------'
     foo = np.zeros(lbpa.samples, dtype=np.int8)
@@ -50,6 +52,16 @@ def test_bf():
     print 'BF     = ', bf.latent
     print 'QP     = ', qp.latent
     print 'LBPA   = ', lbpa.latent
+
+    logZ_bf = bf.log_partition(lbpa.unpack_v(qp.v))
+    for i in range(10):
+        logZ_pl = lbpa.log_partition(lbpa.unpack_v(qp.v))
+        logZ_unary = lbpa.log_partition_unary(lbpa.unpack_v(qp.v))
+
+    print 'logZ ------------------------'
+    print 'True   = ', logZ_bf
+    print 'Pseudo-likelihood   = ', logZ_pl
+    print 'Unary   = ', logZ_unary
 
 
 def test_constr_speed():
@@ -114,9 +126,9 @@ def test_lbp():
 
 
 if __name__ == '__main__':
-    # test_bf()
+    test_bf()
     # test_constr_speed()
-    test_lbp()
+    # test_lbp()
 
     #
     # lbpa, qp, x, y, z = get_test_data(2000, 100)

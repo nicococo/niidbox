@@ -5,6 +5,8 @@ from scipy import optimize as op
 import sklearn.cluster as cl
 import time
 
+from abc import ABCMeta, abstractmethod
+
 from numba import autojit
 
 from tools import profile
@@ -17,6 +19,8 @@ class AbstractTCRFR(object):
 
         Written by Nico Goernitz, TU Berlin, 2015
     """
+    __metaclass__ = ABCMeta  # This is an abstract base class (ABC)
+
     verbosity_level = 0     # (0: no prints, 1:print some globally interesting stuff (iterations etc), 2:print debugs
 
     data = None             # (either matrix or list) data
@@ -44,9 +48,12 @@ class AbstractTCRFR(object):
     V = None  # list of vertices in the graph (according to network structure matrix A)
     E = None  # list of tupels of transitions from edge i to edge j and transition matrix type
 
-    N = None  # matrix of neighbors for each vertex
-    N_inv = None  # N[j, N_inv[i,j]] = i
-    N_weights = None
+    # edge related neighbor indices
+    N = None                # (samples x max_conn) matrix of neighbors for each vertex
+    N_inv = None            # (samples x max_conn) N[j, N_inv[i,j]] = i
+    N_weights = None        # symmetric (samples x max_conn) {0,1} 1:corresponding N[i,j] is a valid neighbor
+    N_edge_weights = None   # unsymmetric (samples x max_conn) {0,1} 1:corresponding N[i,j] is a valid neighbor
+
 
     Q = None  # (dims x dims) Crf regularization matrix
 
@@ -111,7 +118,9 @@ class AbstractTCRFR(object):
         self.N = np.zeros((len(self.V), max_conn), dtype=np.int32)
         self.N_inv = np.zeros((len(self.V), max_conn), dtype=np.int32)
         self.N_weights = np.zeros((len(self.V), max_conn), dtype=np.int8)
+        self.N_edge_weights = np.zeros((len(self.V), max_conn), dtype=np.int8)
         N_idx = np.zeros(len(self.V), dtype='i')
+        N_edge_idx = np.zeros(len(self.V), dtype='i')
 
         # construct edge matrix
         num_edges = int((matrix(1.0, (1, A.size[0]))*A*matrix(1.0, (A.size[0], 1)))[0]/2)
@@ -128,6 +137,8 @@ class AbstractTCRFR(object):
             n = AJ[idx]
             if s < n:
                 self.E[cnt, :] = (s, n, AV[cnt])
+                self.N_edge_weights[s, N_edge_idx[s]] = n
+                N_edge_idx[s] += 1
                 cnt += 1
                 # update neighbors
                 self.N_inv[s, N_idx[s]] = N_idx[n]     # N[j, N_inv[i,j]] = i
@@ -355,6 +366,7 @@ class AbstractTCRFR(object):
             phis[s*self.feats:(s+1)*self.feats, inds] = self.data[:, inds]
         return self.u.dot(phis), lats
 
+    @profile
     def get_joint_feature_maps(self, latent=None):
         if latent is None:
             latent = self.latent
@@ -376,6 +388,7 @@ class AbstractTCRFR(object):
             return 1e10
         return np.sum(np.abs(self.latent - self.latent_prev))
 
+    @profile
     def unpack_v(self, v):
         upv = np.zeros(self.trans_n*self.trans_d_full + self.S * self.get_num_feats())
         # transitions include various transition matrices, each either symmetric or full
@@ -432,16 +445,163 @@ class AbstractTCRFR(object):
     def get_num_feats(self):
         return self.feats
 
+    @abstractmethod
     def map_inference(self, u, v):
-        pass
+        raise NotImplementedError
 
     def log_partition(self, v):
-        pass
+        return self.log_partition_pl(v)
 
     def log_partition_derivative(self, v):
-        pass
+        """
+        This method is not particularly needed. If provided, it can speed up the
+        l-bfgs method in em_estimate_v otherwise auto-gradients are used (could be noisy due
+        to approximations and therefore, lead to more iterations).
+        """
+        raise NotImplementedError
+
+    @profile
+    def log_partition_pl(self, v):
+        # This function calculates/estimates the log-partition function by
+        # pseudolikelihood approximation. Therefore, we assume the states for
+        # the neighbors fixed (e.g. from previous map inference).
+        #
+        # log Z = log \sum_z exp( <v,\Psi(X,z)> )    # intractable even for small z
+        #       = log \sum_z exp( \sum_ij f_trans(i=z_i,j=z_j) + \sum_v f_em(v=z_v) )
+        #       ~ log \sum_v \sum_z_v exp( f_pl(v, z_v) )
+        #
+        # Hence, for a node i in state s given the neighbors j with fixed states n_j:
+        #       f_pl(i, s) = f_em(i, s) + sum_j sum_t f_trans(i=s, j=t)+f_em(j, t)
+        #
+
+        # self.N is a (Nodes x max_connection_count) Matrix containing the indices for each neighbor
+        # of each node (indices are 0 for non-neighbors, therefore N_weights is need to multiply this
+        # unvalid value with 0.
+        v_em = v[self.trans_n*self.trans_d_full:].reshape((self.feats, self.S), order='F')
+        f_inner = np.zeros((self.S, self.samples))
+
+        cnt_neighs = np.sum(self.N_weights, axis=1)
+        for s1 in range(self.S):
+            f_trans = np.zeros(self.samples)
+            for s2 in range(self.S):
+                f_trans += v[self.trans_mtx2vec_full[s1, s2]]*cnt_neighs
+            f_inner[s1, :] = v_em[:, s1].dot(self.data) + f_trans
+
+        # exp-trick (to prevent NAN because of large numbers): log[sum_i exp(x_i-a)]+a = log[sum_i exp(x_i)]
+        max_score = np.max(f_inner)
+        f_inner = np.sum(np.exp(f_inner - max_score), axis=0)
+        foo = np.sum(np.log(f_inner) + max_score)
+        if np.isnan(foo) or np.isinf(foo):
+            print('TCRFR Pairwise Potential Model: the log_partition is NAN or INF!!')
+        return foo
+
+    @profile
+    def log_partition_unary(self, v):
+        # self.N is a (Nodes x max_connection_count) Matrix containing the indices for each neighbor
+        # of each node (indices are 0 for non-neighbors, therefore N_weights is need to multiply this
+        # unvalid value with 0.
+        v_em = v[self.trans_n*self.trans_d_full:].reshape((self.feats, self.S), order='F')
+        f_inner = np.zeros((self.S, self.samples))
+        for s1 in range(self.S):
+            f_inner[s1, :] = v_em[:, s1].dot(self.data)
+        # exp-trick (to prevent NAN because of large numbers): log[sum_i exp(x_i-a)]+a = log[sum_i exp(x_i)]
+        max_score = np.max(f_inner)
+        f_inner = np.sum(np.exp(f_inner - max_score), axis=0)
+        foo = np.sum(np.log(f_inner) + max_score)
+        if np.isnan(foo) or np.isinf(foo):
+            print('TCRFR Pairwise Potential Model: the log_partition is NAN or INF!!')
+        return foo
+
+    def log_partition_derivative_indep_experimental(self, v):
+        v_trans = v[:self.S*self.S].reshape((self.S, self.S), order='F')
+        v_em = v[self.trans_n*self.trans_d_full:].reshape((self.feats, self.S), order='F')
+
+        # (A)
+        f = np.zeros((self.S, self.samples))
+        for s in range(self.S):
+            w = v_trans[s, self.latent]
+            foo = np.zeros(self.samples)
+            #for n in range(len(self.N)):
+            #    foo[n] = np.sum(w[self.N[n]])
+            f[s, :] = np.exp(v_em[:, s].dot(self.data) + foo)
+        sum_f = np.sum(f, axis=0)
+
+        # (B)
+        for s in range(self.S):
+            f[s, :] /= sum_f
+
+        # (C)
+        phis = np.zeros((self.get_num_compressed_dims(), self.samples))
+        for s in range(self.S):
+            foo = np.zeros(self.samples)
+            for n in range(len(self.N)):
+                foo[n] = np.sum(self.N[n]==s)
+            phis[s, :] = foo * f[s, :]
+
+        idx = self.trans_n*self.trans_d_full
+        for s in range(self.S):
+            for feat in range(self.feats):
+                phis[idx, :] = self.data[feat, :] * f[s, :]
+                idx += 1
+        return np.sum(phis, axis=1)
+
+    def log_partition_derivative_gibbs_experimental(self, v, max_iter=5):
+        """ Gibbs sampler for the expectation of psi-feature map
+            (used for the derivative of the partition function).
+            returns expectation E_z[psi(X,z)]
+        """
+        # HINT: avoiding overflow
+        # log sum_z exp(z) = a + log sum_z exp(z-a)
+
+        # 1. get good starting point (MAP - solution)
+        psi = self.psi
+        sample = self.latent
+        max_score = v.T.dot(psi)
+        psi_cache = np.zeros((self.get_num_compressed_dims(), self.S))
+
+        all_samples = np.zeros((self.get_num_compressed_dims(), max_iter))
+        all_scores = np.zeros(max_iter)
+
+        num_iter = 1
+        all_samples[:, 0] = psi
+        all_scores[0] = max_score
+        while max_iter > num_iter:
+            # 2. (sampling) inner loop: sample states
+            for v in range(len(self.V)):
+                for s in range(self.S):
+                    sample[v] = s
+                    psi_cache[:, s] = self.get_crf_joint_feature_map(sample)
+                # get scores
+                scores = np.exp(v.T.dot(psi_cache) - max_score)
+                # normalize
+                prop_scores = scores / np.sum(scores)
+                # choose uniform sample
+                thres = np.random.rand()
+                ind = -1
+                add = 0.0
+                for i in range(self.S):
+                    if add <= thres <= prop_scores[i] + add:
+                        ind = i
+                        break
+                    else:
+                        add += prop_scores[i]
+                # final sample
+                sample[v] = ind
+            # 3. update expectation
+            all_samples[:, num_iter] = psi_cache[:, ind]
+            all_scores[num_iter] = scores[ind]
+            if self.verbosity_level>=2:
+                print('{0} - score={1}'.format(num_iter, scores[ind]))
+            num_iter += 1
+
+        all_scores /= np.sum(all_scores)
+        grad = np.zeros(self.get_num_compressed_dims())
+        for i in range(max_iter):
+            grad += all_scores[i]*all_samples[:, i]
+        return grad
 
 
+@profile
 @autojit(nopython=True)
 def _extern_get_crf_joint_feature_map(data, y, E, V, mtx2vec, dims, feats, trans_d_full, trans_n):
     psi = np.zeros(dims, dtype=np.float64)

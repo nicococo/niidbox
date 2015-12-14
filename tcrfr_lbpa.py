@@ -14,6 +14,12 @@ class TCRFR_lbpa(AbstractTCRFR):
 
     fix_lbl_map = False  # fix the labeled data in the inference (only infer once after calling map_inference)?
 
+    MAP_BP = 0     # (default) Loopy-belief propagation numba-optimized
+    MAP_LBPA = 1   # Loopy-belief propagation approximation
+    MAP_INDEP = 2  # Independent model (crude approximation but fast)
+
+    map_inference_scheme = MAP_BP  # use (loopy) belief progagation as the default inference scheme
+
     def __init__(self, data, labels, label_inds, unlabeled_inds, states, A,
                  reg_theta=0.5, reg_lambda=0.001, reg_gamma=1.0, trans_regs=[1.0, 1.0],
                  trans_sym=[1], lbl_weight=1.0, verbosity_level=1):
@@ -27,46 +33,22 @@ class TCRFR_lbpa(AbstractTCRFR):
                     self.N_weights[ind, i] = lbl_weight
 
     @profile
-    def log_partition(self, v):
-        # This function calculates/estimates the log-partition function by
-        # pseudolikelihood approximation. Therefore, we assume the states for
-        # the neighbors fixed (e.g. from previous map inference).
-        #
-        # log Z = log \sum_z exp( <v,\Psi(X,z)> )    # intractable even for small z
-        #
-        # Hence, for a node i in state s given the neighbors j with fixed states n_j:
-        #       f(i, s) = f_em(i, s) + sum_j f_trans(i=s, j=n_j)
-        #
-
-        # self.N is a (Nodes x max_connection_count) Matrix containing the indices for each neighbor
-        # of each node (indices are 0 for non-neighbors, therefore N_weights is need to multiply this
-        # unvalid value with 0.
-        yn = self.latent[self.N] # (nodex x max_connection_count) latent state matrix
-        v_em = v[self.trans_n*self.trans_d_full:].reshape((self.feats, self.S), order='F')
-        f_inner = np.zeros((self.S, self.samples))
-        for s1 in range(self.S):
-            foo = np.zeros(self.samples)
-            for s2 in range(self.S):
-                n_cnts = np.sum(np.array((yn == s2), dtype='d')*self.N_weights, axis=1)
-                foo += v[self.trans_mtx2vec_full[s1, s2]]*n_cnts
-            f_inner[s1, :] = v_em[:, s1].dot(self.data) + foo
-        # exp-trick (to prevent NAN because of large numbers): log[sum_i exp(x_i-a)]+a = log[sum_i exp(x_i)]
-        max_score = np.max(f_inner)
-        f_inner = np.sum(np.exp(f_inner - max_score), axis=0)
-        foo = np.sum(np.log(f_inner) + max_score)
-        if np.isnan(foo) or np.isinf(foo):
-            print('TCRFR Pairwise Potential Model: the log_partition is NAN or INF!!')
-        return foo
-
-    @profile
     def map_inference(self, u, v):
         if self.latent is not None:
             self.latent_prev = self.latent
-        # self.latent = self.map_lbpa(u, v)
-        self.latent = _extern_map_lbp(self.data, self.labels, self.label_inds, self.unlabeled_inds, \
-                                      self.N, self.N_inv, self.N_weights, u, v, self.reg_theta, self.feats, \
-                                      self.samples, self.S, self.trans_d_full, self.trans_n, \
-                                      self.trans_mtx2vec_full, self.fix_lbl_map)
+
+        # choose MAP inference scheme
+        if self.map_inference_scheme == self.MAP_BP:
+            self.latent = _extern_map_lbp(self.data, self.labels, self.label_inds, self.unlabeled_inds, \
+                                          self.N, self.N_inv, self.N_weights, u, v, self.reg_theta, self.feats, \
+                                          self.samples, self.S, self.trans_d_full, self.trans_n, \
+                                          self.trans_mtx2vec_full, self.fix_lbl_map)
+        elif self.map_inference_scheme == self.MAP_LBPA:
+            self.latent = self.map_lbpa(u, v)
+        elif self.map_inference_scheme == self.MAP_INDEP:
+            self.latent = self.map_indep(u, v)
+        else:
+            print('No valid MAP inference scheme selected!')
 
         return self.get_joint_feature_maps()
 
@@ -204,13 +186,8 @@ def _extern_map_lbp(data, labels, label_inds, unlabeled_inds, N, N_inv, N_weight
         for n1 in range(num_neighs):
             sum_msg += msgs[neighs[n1], N_inv[i, n1], t]
         foo[t] = unary[t, i] + (1.0 - theta)*sum_msg
-    # recursive backtracking
 
-    # lats = np.ones(samples, dtype=np.int8)
-    # lats = backtracking(i, lats, np.argmax(foo), psis, N, N_inv, N_weights)
-    # print lats
-    # return backtracking(i, latent, np.argmax(foo), psis, N, N_inv, N_weights)
-
+    # backtracking step
     idxs = np.zeros(samples, dtype=np.int32)
     latent[i] = np.argmax(foo)
     idxs[0] = i

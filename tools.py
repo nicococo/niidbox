@@ -3,7 +3,7 @@ __author__ = 'Nico Goernitz'
 __date__ = '12.2015'
 
 import numpy as np
-import time
+import sys, os, time
 
 
 global_profiles = dict()  # contains the global profile information
