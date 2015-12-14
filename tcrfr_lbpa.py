@@ -132,7 +132,7 @@ class TCRFR_lbpa(AbstractTCRFR):
         return lats
 
 
-@autojit(nopython=False)
+@autojit(nopython=True)
 def _extern_map_lbp(data, labels, label_inds, unlabeled_inds, N, N_inv, N_weights, \
              u, v, theta, feats, samples, states, trans_d_full, trans_n, trans_mtx2vec_full, fix_lbl_map):
 
@@ -171,6 +171,7 @@ def _extern_map_lbp(data, labels, label_inds, unlabeled_inds, N, N_inv, N_weight
 
             for j in range(num_neighs):
                 bak = msgs[i, j, :].copy()
+                max_msg = -1e12
                 for s in range(states):
                     for t in range(states):
 
@@ -182,12 +183,19 @@ def _extern_map_lbp(data, labels, label_inds, unlabeled_inds, N, N_inv, N_weight
                         foo[t] = unary[t, i] + (1.0 - theta)*(v[trans_mtx2vec_full[s, t]] + sum_msg)
                     msgs[i, j, s] = np.max(foo)
                     psis[i, j, s] = np.argmax(foo)
-                msgs[i, j, :] -= np.max((msgs[i, j, :]))  # normalization of the new message from i->j
-                change += np.sum(np.abs(msgs[i,j,:]-bak))
+                    if msgs[i, j, s] > max_msg:
+                        max_msg = msgs[i, j, s]
+
+                # msgs[i, j, :] -= np.max((msgs[i, j, :]))  # normalization of the new message from i->j
+                for m in range(states):
+                    msgs[i, j, m] -= max_msg   # normalization of the new message from i->j
+                change += np.sum(np.abs(msgs[i, j, :]-bak))
+
         iter += 1
         print change
 
-    i = samples-1
+    # BACKTRACKING INIT: choose maximizing state for the last variable that was optimized
+    i = np.int(samples-1)
     num_neighs = np.sum(N_weights[i, :])
     neighs = N[i, :num_neighs]
     foo = np.zeros(states)
@@ -196,19 +204,34 @@ def _extern_map_lbp(data, labels, label_inds, unlabeled_inds, N, N_inv, N_weight
         for n1 in range(num_neighs):
             sum_msg += msgs[neighs[n1], N_inv[i, n1], t]
         foo[t] = unary[t, i] + (1.0 - theta)*sum_msg
+    # recursive backtracking
 
-    return backtracking(i, latent, np.argmax(foo), psis, N, N_inv, N_weights)
+    # lats = np.ones(samples, dtype=np.int8)
+    # lats = backtracking(i, lats, np.argmax(foo), psis, N, N_inv, N_weights)
+    # print lats
+    # return backtracking(i, latent, np.argmax(foo), psis, N, N_inv, N_weights)
+
+    idxs = np.zeros(samples, dtype=np.int32)
+    latent[i] = np.argmax(foo)
+    idxs[0] = i
+    cnt = 1
+    for s in range(samples):
+        i = idxs[s]
+        for j in range(np.sum(N_weights[i, :])):
+            if latent[N[i, j]] < 0:
+                latent[N[i, j]] = psis[N[i, j], N_inv[i, j], latent[i]]
+                idxs[cnt] = N[i, j]
+                cnt += 1
+
+    return latent
 
 
-@autojit
+@autojit(nopython=False)
 def backtracking(i, latent, fixed, psis, N, N_inv, N_weights):
-
     if latent[i]>-1:
         return latent
-
     latent[i] = fixed
     for j in range(np.sum(N_weights[i, :])):
-        j_fixed = psis[N[i,j], N_inv[i, j], fixed]
+        j_fixed = np.int(psis[N[i,j], N_inv[i, j], fixed])
         latent = backtracking(N[i, j], latent, j_fixed, psis, N, N_inv, N_weights)
-
     return latent

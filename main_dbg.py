@@ -34,7 +34,7 @@ def get_test_data(exms, train):
 
 
 def test_bf():
-    lbpa, qp, bf, x, y, z = get_test_data(14, 6)
+    lbpa, qp, bf, x, y, z = get_test_data(14, 10)
     # lbpa.fix_lbl_map = True
     # lbpa.fit(use_grads=False)
     # qp.fit(use_grads=False)
@@ -78,7 +78,7 @@ def test_constr_speed():
 
 
 def test_lbp():
-    exms = 60
+    exms = 30
     train = 10
     x, y, z = get_1d_toy_data(exms, plot=False)
     x -= np.mean(x, axis=0)
@@ -114,9 +114,9 @@ def test_lbp():
 
 
 if __name__ == '__main__':
-    test_bf()
+    # test_bf()
     # test_constr_speed()
-    # test_lbp()
+    test_lbp()
 
     #
     # lbpa, qp, x, y, z = get_test_data(2000, 100)

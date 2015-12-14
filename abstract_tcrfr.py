@@ -82,9 +82,9 @@ class AbstractTCRFR(object):
 
         # number of states that is used for all transition/emission matrices
         self.S = states
-        self.latent = np.zeros(verts, dtype='i')
-        self.latent_prev = np.zeros(verts, dtype='i')
-        self.latent_fixed = np.zeros(verts, dtype='i')
+        self.latent = np.zeros(verts, dtype=np.int8)
+        self.latent_prev = np.zeros(verts, dtype=np.int8)
+        self.latent_fixed = np.zeros(verts, dtype=np.int8)
 
         # some transition inits
         self.trans_d_sym = np.round(self.S * (self.S - 1.) / 2. + self.S)
@@ -108,14 +108,14 @@ class AbstractTCRFR(object):
         # neighbor array (and weights {0,1} for each vertex
         max_conn = np.int(max(self.A*matrix(1, (self.A.size[0], 1), tc='i')))
         print max_conn
-        self.N = np.zeros((len(self.V), max_conn), dtype='i')
-        self.N_inv = np.zeros((len(self.V), max_conn), dtype='i')
-        self.N_weights = np.zeros((len(self.V), max_conn), dtype='i')
+        self.N = np.zeros((len(self.V), max_conn), dtype=np.int32)
+        self.N_inv = np.zeros((len(self.V), max_conn), dtype=np.int32)
+        self.N_weights = np.zeros((len(self.V), max_conn), dtype=np.int8)
         N_idx = np.zeros(len(self.V), dtype='i')
 
         # construct edge matrix
         num_edges = int((matrix(1.0, (1, A.size[0]))*A*matrix(1.0, (A.size[0], 1)))[0]/2)
-        self.E = np.zeros((num_edges, 3), dtype=np.int)
+        self.E = np.zeros((num_edges, 3), dtype=np.int64)
         t = time.time()
         AI = A.I
         AJ = A.J
@@ -219,14 +219,14 @@ class AbstractTCRFR(object):
 
     def get_trans_converters(self):
         # P: states x states -> states*states
-        P = np.zeros((self.S, self.S))
+        P = np.zeros((self.S, self.S), dtype=np.int32)
         cnt = 0
         for s1 in range(self.S):
             for s2 in range(self.S):
                 P[s1, s2] = cnt
                 cnt += 1
         # R: states x states -> np.round(states*(states-1)/2 +states)
-        R = np.zeros((self.S, self.S))
+        R = np.zeros((self.S, self.S), dtype=np.int32)
         cnt = 0
         for s1 in range(self.S):
             for s2 in range(s1, self.S):
@@ -237,11 +237,11 @@ class AbstractTCRFR(object):
         # M: np.round(states*(states-1)/2 +states) -> states*states
         # M \in {0,1}^(states*states x np.round(states*(states-1)/2 +states))
         N_sym = np.int(self.S*(self.S-1.)/2. + self.S)
-        M = np.zeros((self.S*self.S, N_sym))
+        M = np.zeros((self.S*self.S, N_sym), dtype=np.int32)
         row = 0
         for s1 in range(self.S):
             for s2 in range(self.S):
-                M[row, R[s1, s2]] = 1.
+                M[row, R[s1, s2]] = 1
                 row += 1
         return P, R, M
 
