@@ -1,19 +1,19 @@
 import numpy as np
-import matplotlib.pyplot as plt
 import cvxopt as co
-import time
 
 from tcrfr_bf import TCRFR_BF
 from tcrfr_qp import TCRFR_QP
 from tcrfr_lbpa import TCRFR_lbpa
+from tcrfr_iset_lbpa import TCRFR_iset_lbpa
 
-from test_setup import get_1d_toy_data
+from test_setup import get_1d_toy_data, evaluate
 
 from tools import profile, print_profiles
 
 def get_test_data(exms, train):
     # generate toy data
     x, y, z = get_1d_toy_data(exms, plot=False)
+    y -= np.mean(y, axis=0)
     x -= np.mean(x, axis=0)
     x = np.hstack([x, np.ones((exms, 1))])
     print x.shape
@@ -65,28 +65,31 @@ def test_bf():
 
 
 def test_constr_speed():
-    exms = 2000
-    train = 100
+    exms = 10000
+    train = 1000
     x, y, z = get_1d_toy_data(exms, plot=False)
     x -= np.mean(x, axis=0)
     x = np.hstack([x, np.ones((exms, 1))])
     print x.shape
     # ...and corresponding transition matrix
-    A = np.zeros((exms, exms), dtype=np.int32)
-    for j in range(1, 20):
+
+    A = co.spmatrix(0, [], [], (exms, exms), tc='d')
+    for j in range(1, 2):
         for i in range(j, exms):
             A[i-j, i] = 1
             A[i, i-j] = 1
-    A = co.sparse(co.matrix(A, tc='i'))
+
     inds = np.random.permutation(exms)
     uinds = inds[train:]
     linds = inds[:train]
 
-    lbpa = TCRFR_lbpa(x.T.copy(), y[linds].copy(), linds, uinds, states=2, A=A, reg_theta=0.5, trans_sym=[1])
-    t = time.time()
-    for i in range(10):
-        lbpa = TCRFR_lbpa(x.T.copy(), y[linds].copy(), linds, uinds, states=2, A=A, reg_theta=0.5, trans_sym=[1])
-    print time.time()-t
+    print('Start:')
+    cluster = [ np.array(range(exms))]
+    lbpa = TCRFR_iset_lbpa(cluster, x.T, y[linds], linds, uinds, states=2, A=A, \
+                      reg_theta=0.9, reg_gamma=1., trans_sym=[1])
+    lbpa.fit(use_grads=False)
+    y_pred, lat_pred = lbpa.predict()
+    print evaluate(y[uinds], y_pred[uinds], z[uinds], lat_pred[uinds], 0.0)
 
 
 def test_lbp():
@@ -126,8 +129,8 @@ def test_lbp():
 
 
 if __name__ == '__main__':
-    test_bf()
-    # test_constr_speed()
+    # test_bf()
+    test_constr_speed()
     # test_lbp()
 
     #

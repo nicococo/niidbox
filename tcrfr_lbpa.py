@@ -1,4 +1,4 @@
-__author__ = 'nicococo'
+__author__ = 'Nico Goernitz, TU Berlin, 2015'
 import numpy as np
 
 from numba import autojit
@@ -6,12 +6,10 @@ from numba import autojit
 from abstract_tcrfr import AbstractTCRFR
 from tools import profile
 
+
 class TCRFR_lbpa(AbstractTCRFR):
     """ Pairwise Conditional Random Field for transductive regression.
     """
-    psi = None  # copy of the current joint feature map, corresponding to self.latent
-    phis = None  # copy of the current joint feature map, corresponding to self.latent
-
     fix_lbl_map = False  # fix the labeled data in the inference (only infer once after calling map_inference)?
 
     MAP_BP = 0     # (default) Loopy-belief propagation numba-optimized

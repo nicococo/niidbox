@@ -3,7 +3,7 @@ __author__ = 'Nico Goernitz'
 __date__ = '12.2015'
 
 import numpy as np
-import sys, os, time
+import sys, os, time, resource
 
 
 global_profiles = dict()  # contains the global profile information
@@ -20,7 +20,6 @@ def profile(fn=None):
         fn: decorated function
     Returns: wrapped timer function around 'func'
     """
-    skip_first_call = False
 
     # name of the function
     name = fn.__name__
@@ -39,23 +38,25 @@ def profile(fn=None):
         if global_profiles.has_key(fkey):
             fcalls, ftime, fdict = global_profiles[fkey]
             if not fdict.has_key(key):
-                fdict[key] = 0, 0., skip_first_call
+                fdict[key] = 0, 0., 0, 0
                 global_profiles[fkey] = fcalls, ftime, fdict
     else:
         fdict = dict()
-        fdict[key] = 0, 0., skip_first_call
+        fdict[key] = 0, 0., 0, 0
         global_profiles[fkey] = 0, 0., fdict
 
     def timed(*args, **kw):
+        mem = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
         t = time.time()
         result = fn(*args, **kw)
         t = time.time() - t
+        mem = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss - mem
 
         fcalls, ftime, fdict = global_profiles[fkey]
-        ncalls, ntime, skip = fdict[key]
-        if ncalls==0 and skip:
-            ntime = 0.
-        fdict[key] = ncalls + 1, ntime + t, skip
+        ncalls, ntime, nmem, skip = fdict[key]
+        if ncalls==0:
+            skip = t
+        fdict[key] = ncalls + 1, ntime + t, max(nmem, mem), skip
         global_profiles[fkey] = fcalls + 1, ftime + t, fdict
         return result
     return timed
@@ -71,7 +72,7 @@ def print_profiles():
     for fkey in  global_profiles.keys():
         fcalls, ftime, fdict = global_profiles[fkey]
         if fcalls==0:
-            print('\n-------{0}: unsused.'.format(fkey.ljust(34)))
+            print('\n-------{0}: unused.'.format(fkey.ljust(34)))
         else:
             print('\n-------{0}: ncalls={1:3d} total_time={2:1.4f} avg_time={3:1.4f}'.format( \
                 fkey.ljust(34), fcalls, ftime, ftime/float(fcalls)))
@@ -79,15 +80,15 @@ def print_profiles():
         keys = fdict.keys()
         times = list()
         for i in range(len(keys)):
-            ncalls, ntime, skip = fdict[keys[i]]
+            ncalls, ntime, max_mem, skip = fdict[keys[i]]
             times.append(-ntime)
 
         sidx = np.argsort(times).tolist()
         for i in sidx:
-            ncalls, ntime, skip = fdict[keys[i]]
+            ncalls, ntime, max_mem, first_call = fdict[keys[i]]
             if ncalls==0:
-                print('      -{0}: unsused.'.format(keys[i].ljust(34)))
+                print('      -{0}: unused.'.format(keys[i].ljust(34)))
             else:
-                print('      -{0}: ncalls={1:3d} total_time={2:1.4f} avg_time={3:1.4f}'.format( \
-                    keys[i].ljust(34), ncalls, ntime, ntime/float(ncalls)))
+                print('      -{0}: ncalls={1:3d} total_time={2:1.4f} first_call={3:1.4f} avg_time={4:1.4f} max_mem={5}'.format( \
+                    keys[i].ljust(34), ncalls, ntime, first_call, ntime/float(ncalls), max_mem))
 

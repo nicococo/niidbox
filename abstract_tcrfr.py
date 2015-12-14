@@ -75,6 +75,7 @@ class AbstractTCRFR(object):
     trans_d_sym = 0   # (scalar) number of values that need to be stored for a symmetric transition matrix
     trans_d_full = 0  # (scalar) number of values that need to be stored for a full transition matrix
 
+    @profile
     def __init__(self, data, labels, label_inds, unlabeled_inds, states, A,
                  reg_theta=0.5, reg_lambda=0.001, reg_gamma=1.0, trans_regs=[1.0], trans_sym=[1], verbosity_level=1):
         # set verbosity
@@ -130,6 +131,7 @@ class AbstractTCRFR(object):
         AJ = A.J
         AV = A.V
         num_entries = len(A.I)
+        print num_entries, num_edges
         assert 2*num_edges == num_entries  # is assumed to be twice the number of edges!
         cnt = 0
         for idx in range(num_entries):
@@ -262,7 +264,7 @@ class AbstractTCRFR(object):
 
     def em_estimate_v_grad_callback(self, v, psi, boolean):
         vn = self.unpack_v(v)
-        return self.reg_gamma * vn - psi + self.log_partition_derivative(vn)
+        return .5 * vn.T.dot(self.Q) - psi + self.log_partition_derivative(vn)
 
     def em_estimate_v(self, v, psi, use_grads=True):
         if use_grads and np.sum(self.trans_sym)>0:
@@ -292,18 +294,25 @@ class AbstractTCRFR(object):
         obj = self.reg_lambda / 2.0 * u.dot(u) + y.dot(y) / 2.0 - u.dot(X.T.dot(y)) + u.dot(X.T.dot(X.dot(u))) / 2.0
         return obj, u
 
-    def fit(self, max_iter=50, hotstart=None, use_grads=True):
+    def fit(self, max_iter=50, hotstart=None, use_grads=True, auto_adjust=True):
         u, v = self.get_hotstart()
         if hotstart is not None:
             print('Manual hotstart position defined.')
             u, v = hotstart
 
-        obj = 1e09
+        obj = 1e50
         cnt_iter = 0
         is_converged = False
 
         # best objective, u and v
         best_sol = [0, 1e14, None, None, None]
+
+        if auto_adjust:
+            # adjust reg_gamma
+            self.reg_gamma = np.linalg.norm(v)
+            v /= np.linalg.norm(v)
+            self.init_Q()
+            print('Auto-adjust reg_gamma = {0} norm_v={1}'.format(self.reg_gamma, np.linalg.norm(v)))
 
         # terminate if objective function value doesn't change much
         while cnt_iter < max_iter and not is_converged:
@@ -334,11 +343,15 @@ class AbstractTCRFR(object):
             if self.verbosity_level >= 1:
                 print('Iter={0} regr={1:4.2f} crf={2:4.2f}; objective={3:4.2f} rel={4:2.4f} lats={5}'.format(
                     cnt_iter, obj_regression, obj_crf, obj, rel, np.unique(self.latent).size))
-            if best_sol[1]-obj >= 0.:
+                print('  norm_v={0}'.format(np.linalg.norm(v)))
+
+            if best_sol[1] >= obj:
                 best_sol = [cnt_iter, obj, u, v, self.latent]
                 print('*')
+
             if cnt_iter > 3 and rel < 0.0001:
                 is_converged = True
+
             if np.isinf(obj) or np.isnan(obj):
                 return False
             cnt_iter += 1
@@ -488,7 +501,8 @@ class AbstractTCRFR(object):
             f_inner[s1, :] = v_em[:, s1].dot(self.data) + f_trans
 
         # exp-trick (to prevent NAN because of large numbers): log[sum_i exp(x_i-a)]+a = log[sum_i exp(x_i)]
-        max_score = np.max(f_inner)
+        max_score = np.max(f_inner, axis=0).reshape((1, self.samples))  # max-score for each sample
+        max_score = np.repeat(max_score, self.S, axis=0)
         f_inner = np.sum(np.exp(f_inner - max_score), axis=0)
         foo = np.sum(np.log(f_inner) + max_score)
         if np.isnan(foo) or np.isinf(foo):
