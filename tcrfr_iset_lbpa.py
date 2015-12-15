@@ -4,7 +4,7 @@ import numpy as np
 from numba import autojit
 
 from abstract_tcrfr import AbstractTCRFR
-from tcrfr_lbpa import AbstractTCRFR, _extern_map_lbp
+from tcrfr_lbpa import TCRFR_lbpa, _extern_map_lbp
 from tools import profile
 
 
