@@ -4,7 +4,7 @@ import cvxopt as co
 from tcrfr_bf import TCRFR_BF
 from tcrfr_qp import TCRFR_QP
 from tcrfr_lbpa import TCRFR_lbpa
-from tcrfr_iset_lbpa import TCRFR_iset_lbpa
+from tcrfr_lbpa_iset import TCRFR_lbpa_iset
 
 from test_setup import get_1d_toy_data, evaluate
 
@@ -85,8 +85,8 @@ def test_constr_speed():
 
     print('Start:')
     cluster = [ np.array(range(exms))]
-    lbpa = TCRFR_iset_lbpa(cluster, x.T, y[linds], linds, uinds, states=2, A=A, \
-                      reg_theta=0.9, reg_gamma=1., trans_sym=[1])
+    lbpa = TCRFR_lbpa_iset(cluster, x.T, y[linds], linds, uinds, states=2, A=A, \
+                           reg_theta=0.9, reg_gamma=1., trans_sym=[1])
     lbpa.fit(use_grads=False)
     y_pred, lat_pred = lbpa.predict()
     print evaluate(y[uinds], y_pred[uinds], z[uinds], lat_pred[uinds], 0.0)

@@ -8,7 +8,7 @@ from tcrfr_lbpa import TCRFR_lbpa, _extern_map_lbp
 from tools import profile
 
 
-class TCRFR_iset_lbpa(AbstractTCRFR):
+class TCRFR_lbpa_iset(AbstractTCRFR):
     """ Pairwise Conditional Random Field for transductive regression.
 
         The graphical model is assumed to split into multiple disjunct sets
