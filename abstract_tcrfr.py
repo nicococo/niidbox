@@ -42,7 +42,7 @@ class AbstractTCRFR(object):
     v = None  # parameter vector of the crf (consisting of transition matrices and emission matrices)
     u = None  # parameter vector of the regression part
 
-    A = None  # (Nodes x Nodes) = (#V x #V) sparse connectivity matrix (use scipy lil_matrix)
+    A = None  # (Nodes x Nodes) = (#V x #V) sparse connectivity matrix (use cvxopt spmatrix) (symmetric with diag = 0!)
     S = -1    # number of discrete states for each node {0,..,S-1}
 
     V = None  # list of vertices in the graph (according to network structure matrix A)
@@ -53,7 +53,6 @@ class AbstractTCRFR(object):
     N_inv = None            # (samples x max_conn) N[j, N_inv[i,j]] = i
     N_weights = None        # symmetric (samples x max_conn) {0,1} 1:corresponding N[i,j] is a valid neighbor
     N_edge_weights = None   # unsymmetric (samples x max_conn) {0,1} 1:corresponding N[i,j] is a valid neighbor
-
 
     Q = None  # (dims x dims) Crf regularization matrix
 
@@ -124,13 +123,13 @@ class AbstractTCRFR(object):
         N_edge_idx = np.zeros(len(self.V), dtype='i')
 
         # construct edge matrix
-        num_edges = int((matrix(1.0, (1, A.size[0]))*A*matrix(1.0, (A.size[0], 1)))[0]/2)
-        self.E = np.zeros((num_edges, 3), dtype=np.int64)
         t = time.time()
         AI = A.I
         AJ = A.J
         AV = A.V
         num_entries = len(A.I)
+        num_edges = np.int(num_entries / 2)
+        self.E = np.zeros((num_edges, 3), dtype=np.int64)
         print num_entries, num_edges
         assert 2*num_edges == num_entries  # is assumed to be twice the number of edges!
         cnt = 0
@@ -144,7 +143,7 @@ class AbstractTCRFR(object):
                 cnt += 1
                 # update neighbors
                 self.N_inv[s, N_idx[s]] = N_idx[n]     # N[j, N_inv[i,j]] = i
-                self.N_inv[n, N_idx[n]] = N_idx[s]     # N[j, N_inv[i,j]] = i
+                self.N_inv[n, N_idx[n]] = N_idx[s]     
 
                 self.N[s, N_idx[s]] = n
                 self.N[n, N_idx[n]] = s
