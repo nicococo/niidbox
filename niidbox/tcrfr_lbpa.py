@@ -40,7 +40,7 @@ class TCRFR_lbpa(AbstractTCRFR):
             self.latent = _extern_map_lbp(self.data, self.labels, self.label_inds, self.unlabeled_inds, \
                                           self.N, self.N_inv, self.N_weights, u, v, self.reg_theta, self.feats, \
                                           self.samples, self.S, self.trans_d_full, self.trans_n, \
-                                          self.trans_mtx2vec_full, self.fix_lbl_map)
+                                          self.trans_mtx2vec_full, self.fix_lbl_map, self.verbosity_level)
         elif self.map_inference_scheme == self.MAP_LBPA:
             self.latent = self.map_lbpa(u, v)
         elif self.map_inference_scheme == self.MAP_INDEP:
@@ -114,7 +114,7 @@ class TCRFR_lbpa(AbstractTCRFR):
 
 @autojit(nopython=True)
 def _extern_map_lbp(data, labels, label_inds, unlabeled_inds, N, N_inv, N_weights, \
-             u, v, theta, feats, samples, states, trans_d_full, trans_n, trans_mtx2vec_full, fix_lbl_map):
+             u, v, theta, feats, samples, states, trans_d_full, trans_n, trans_mtx2vec_full, fix_lbl_map, verbosity):
 
     unary = np.zeros((states, samples))
     latent = -np.ones(samples, dtype=np.int8)
@@ -172,7 +172,8 @@ def _extern_map_lbp(data, labels, label_inds, unlabeled_inds, N, N_inv, N_weight
                 change += np.sum(np.abs(msgs[i, j, :]-bak))
 
         iter += 1
-        print change
+        if verbosity >= 2:
+            print change
 
     # BACKTRACKING INIT: choose maximizing state for the last variable that was optimized
     i = np.int(samples-1)
