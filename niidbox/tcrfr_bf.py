@@ -14,10 +14,10 @@ class TCRFR_BF(AbstractTCRFR):
 
      Author: Nico Goernitz, 2015
     """
-    def __init__(self, data, labels, label_inds, unlabeled_inds, states, A,
+    def __init__(self, data, labels, label_inds, states, A,
                  reg_theta=0.5, reg_lambda=0.001, reg_gamma=1.0, trans_regs=[1.0, 1.0],
                  trans_sym=[1], verbosity_level=1):
-        AbstractTCRFR.__init__(self, data, labels, label_inds, unlabeled_inds, states, A,
+        AbstractTCRFR.__init__(self, data, labels, label_inds, states, A,
                  reg_theta, reg_lambda, reg_gamma, trans_regs, trans_sym, verbosity_level=verbosity_level)
 
     @profile

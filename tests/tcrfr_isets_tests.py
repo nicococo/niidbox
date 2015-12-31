@@ -6,6 +6,7 @@ from nose.tools import *
 from functools import partial
 
 from test_setup import get_1d_toy_data
+from tcrfr_qp import TCRFR_QP
 from tcrfr_lbpa import TCRFR_lbpa
 from tcrfr_lbpa_iset import TCRFR_lbpa_iset
 
@@ -57,11 +58,21 @@ def test_cluster_setting():
     print "Test Cluster setting."
     # setup cluster 0 & 2 = unlabeled, 1 = labeled (2 latent states)
     cluster = [np.arange(0, 6), np.arange(6, 10), np.arange(10, 16)]
+    A[5, 6] = 0
+    A[6, 5] = 0
+    A[9, 10] = 0
+    A[10, 9] = 0
     assert any(z[6:10]==1) and any(z[6:10]==0)
     labeled_inds = np.arange(6, 10)
-    unlabeled_inds = np.setdiff1d(np.arange(16), labeled_inds)
-    lbpa = TCRFR_lbpa_iset(cluster, x.T, y[labeled_inds], labeled_inds, unlabeled_inds, states=2, A=A, \
+
+    qp = TCRFR_QP(x.T, y[labeled_inds], labeled_inds, states=2, A=A, \
                            reg_theta=0.9, reg_gamma=1., trans_sym=[1])
-    lbpa.fit(use_grads=False)
-    y_pred, lat_pred = lbpa.predict()
-    print y_pred
+    qp.fit(use_grads=False)
+
+    lbpa_iset = TCRFR_lbpa_iset(cluster, x.T, y[labeled_inds], labeled_inds, states=2, A=A, \
+                           reg_theta=0.9, reg_gamma=1., trans_sym=[1])
+    lbpa_iset.fit(use_grads=False)
+
+    print lbpa_iset.latent
+    print qp.latent
+    print z

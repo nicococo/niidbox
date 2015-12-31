@@ -75,7 +75,7 @@ class AbstractTCRFR(object):
     trans_d_full = 0  # (scalar) number of values that need to be stored for a full transition matrix
 
     @profile
-    def __init__(self, data, labels, label_inds, unlabeled_inds, states, A,
+    def __init__(self, data, labels, label_inds, states, A,
                  reg_theta=0.5, reg_lambda=0.001, reg_gamma=1.0, trans_regs=[1.0], trans_sym=[1], verbosity_level=1):
         # set verbosity
         self.verbosity_level = verbosity_level
@@ -126,18 +126,18 @@ class AbstractTCRFR(object):
         t = time.time()
         AI = A.I
         AJ = A.J
-        AV = A.V
-        num_entries = len(A.I)
+        AV = np.array(A.V, dtype=np.int8)
+        num_entries = np.int(np.sum(AV > 0))
         num_edges = np.int(num_entries / 2)
         self.E = np.zeros((num_edges, 3), dtype=np.int64)
         print num_entries, num_edges
         assert 2*num_edges == num_entries  # is assumed to be twice the number of edges!
         cnt = 0
-        for idx in range(num_entries):
+        for idx in range(AV.size):
             s = AI[idx]
             n = AJ[idx]
-            if s < n:
-                self.E[cnt, :] = (s, n, AV[cnt])
+            if s < n and AV[idx] >= 1:
+                self.E[cnt, :] = (s, n, AV[idx])
                 self.N_edge_weights[s, N_edge_idx[s]] = n
                 N_edge_idx[s] += 1
                 cnt += 1
@@ -154,6 +154,7 @@ class AbstractTCRFR(object):
                 N_idx[s] += 1
                 N_idx[n] += 1
         print time.time()-t
+        # print self.E
 
         # regularization constants
         self.reg_lambda = reg_lambda
@@ -163,8 +164,8 @@ class AbstractTCRFR(object):
         # check the data
         self.data = data
         self.labels = np.array(labels)
-        self.label_inds = np.array(label_inds)
-        self.unlabeled_inds = np.array(unlabeled_inds)
+        self.label_inds = np.array(label_inds, dtype=np.int)
+        self.unlabeled_inds = np.setdiff1d(np.arange(self.samples), self.label_inds)
         # assume either co.matrix or list-of-objects
         if isinstance(data, matrix):
             self.feats, self.samples = data.size
