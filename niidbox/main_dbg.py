@@ -27,9 +27,9 @@ def get_test_data(exms, train):
     inds = np.random.permutation(exms)
     uinds = inds[train:]
     linds = inds[:train]
-    lbpa = TCRFR_lbpa(x.T.copy(), y[linds].copy(), linds, uinds, states=2, A=A, reg_gamma=10., reg_theta=0.8, trans_sym=[1])
-    qp   = TCRFR_QP(x.T.copy(), y[linds].copy(), linds, uinds, states=2, A=A, reg_gamma=10., reg_theta=0.8, trans_sym=[1])
-    bf   = TCRFR_BF(x.T.copy(), y[linds].copy(), linds, uinds, states=2, A=A, reg_gamma=10., reg_theta=0.8, trans_sym=[1])
+    lbpa = TCRFR_lbpa(x.T.copy(), y[linds].copy(), linds,  states=2, A=A, reg_gamma=10., reg_theta=0.8, trans_sym=[1])
+    qp   = TCRFR_QP(x.T.copy(), y[linds].copy(), linds, states=2, A=A, reg_gamma=10., reg_theta=0.8, trans_sym=[1])
+    bf   = TCRFR_BF(x.T.copy(), y[linds].copy(), linds, states=2, A=A, reg_gamma=10., reg_theta=0.8, trans_sym=[1])
     return lbpa, qp, bf, x, y, z
 
 
@@ -84,8 +84,8 @@ def test_constr_speed():
     linds = inds[:train]
 
     print('Start:')
-    cluster = [ np.array(range(exms))]
-    lbpa = TCRFR_lbpa_iset(cluster, x.T, y[linds], linds, uinds, states=2, A=A, \
+    cluster = [ np.arange(exms)]
+    lbpa = TCRFR_lbpa_iset(cluster, x.T, y[linds], linds, states=2, A=A, \
                            reg_theta=0.9, reg_gamma=1., trans_sym=[1])
     lbpa.fit(use_grads=False)
     y_pred, lat_pred = lbpa.predict()
@@ -109,13 +109,16 @@ def test_lbp():
     inds = np.random.permutation(exms)
     uinds = inds[train:]
     linds = inds[:train]
+    cluster = [np.arange(exms)]
 
-    qp = TCRFR_QP(x.T.copy(), y[linds].copy(), linds, uinds, states=2, A=A, reg_gamma=10., reg_theta=0.9, trans_sym=[1])
-    lbpa = TCRFR_lbpa(x.T.copy(), y[linds].copy(), linds, uinds, states=2, A=A, reg_gamma=10., reg_theta=0.9, trans_sym=[1])
+    qp = TCRFR_QP(x.T.copy(), y[linds].copy(), linds, states=2, A=A, reg_gamma=10., reg_theta=0.9, trans_sym=[1])
+    lbpa = TCRFR_lbpa(x.T.copy(), y[linds].copy(), linds, states=2, A=A, reg_gamma=10., reg_theta=0.9, trans_sym=[1])
+    lbpa_iset = TCRFR_lbpa_iset(cluster, x.T.copy(), y[linds].copy(), linds, states=2, A=A, reg_gamma=10., reg_theta=0.9, trans_sym=[1])
     qp.fit()
     lbpa.fit()
+    lbpa_iset.fit()
 
-    # lbpa.map_inference(qp.u, lbpa.unpack_v(qp.v))
+    # lbpa_iset.map_inference(lbpa.u, lbpa.unpack_v(lbpa.v))
     lid = lbpa.map_indep(qp.u, lbpa.unpack_v(qp.v))
 
     print 'STATES ------------------------'
@@ -125,6 +128,7 @@ def test_lbp():
     print 'True   = ', z
     print 'QP     = ', qp.latent
     print 'LBPA   = ', lbpa.latent
+    print 'LBPAc  = ', lbpa_iset.latent
     print 'Indep  = ', lid
 
 

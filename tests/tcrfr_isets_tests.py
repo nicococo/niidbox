@@ -76,3 +76,7 @@ def test_cluster_setting():
     print lbpa_iset.latent
     print qp.latent
     print z
+
+    print '------------'
+    print lbpa_iset.log_partition_pl(qp.unpack_v(qp.v))
+    print qp.log_partition_pl(qp.unpack_v(qp.v))
