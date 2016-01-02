@@ -133,8 +133,8 @@ def test_lbp():
 
 
 if __name__ == '__main__':
-    # test_bf()
-    test_constr_speed()
+    test_bf()
+    # test_constr_speed()
     # test_lbp()
 
     #

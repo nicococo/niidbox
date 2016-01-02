@@ -501,13 +501,15 @@ class AbstractTCRFR(object):
             f_inner[s1, :] = v_em[:, s1].dot(self.data) + f_trans
 
         # exp-trick (to prevent NAN because of large numbers): log[sum_i exp(x_i-a)]+a = log[sum_i exp(x_i)]
-        max_score = np.max(f_inner)
-        f_inner = np.sum(np.exp(f_inner - max_score))
-        foo = np.log(f_inner) + max_score
-        # max_score = np.max(f_inner, axis=0).reshape((1, self.samples))  # max-score for each sample
-        # max_score = np.repeat(max_score, self.S, axis=0)
-        # f_inner = np.sum(np.exp(f_inner - max_score), axis=0)
-        # foo = np.sum(np.log(f_inner) + max_score)
+        # max_score = np.max(f_inner)
+        # f_inner = np.sum(np.exp(f_inner - max_score))
+        # foo = np.log(f_inner) + max_score
+
+        max_score = np.max(f_inner, axis=0).reshape((1, self.samples))  # max-score for each sample
+        max_score = np.repeat(max_score, self.S, axis=0)
+        f_inner = np.sum(np.exp(f_inner - max_score), axis=0)
+        foo = np.sum(np.log(f_inner) + max_score)
+
         if np.isnan(foo) or np.isinf(foo):
             print('TCRFR Pairwise Potential Model: the log_partition is NAN or INF!!')
         return foo
