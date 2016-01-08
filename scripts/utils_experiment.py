@@ -36,6 +36,7 @@ def get_1d_toy_data(num_exms=300, plot=False):
     z[zx] = 1
     # inputs  x
     x = 1.2*np.sign(z-0.5)*gx + 0.4*np.random.randn(grid_x)
+
     # ..and corresponding target value y
     y = 4.*z + x*(2.*z+1.) + 0.01*np.random.randn(grid_x)
 

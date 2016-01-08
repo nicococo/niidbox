@@ -19,6 +19,7 @@ class TCRFR_BF(AbstractTCRFR):
                  trans_sym=[1], verbosity_level=1):
         AbstractTCRFR.__init__(self, data, labels, label_inds, states, A,
                  reg_theta, reg_lambda, reg_gamma, trans_regs, trans_sym, verbosity_level=verbosity_level)
+        self.log_partition = self.log_partition_bf
 
     @profile
     def _direct_computation(self, u, v):
@@ -61,6 +62,7 @@ class TCRFR_BF(AbstractTCRFR):
                 max_obj = obj
                 max_states = states
                 max_psi = psi
+
         return max_obj, max_states, max_psi, np.float64(np.log(part_value)), part_grad.reshape((part_grad.size))
 
     @profile
@@ -71,7 +73,7 @@ class TCRFR_BF(AbstractTCRFR):
         return self.get_joint_feature_maps()
 
     @profile
-    def log_partition(self, v):
+    def log_partition_bf(self, v):
         _, _, _, logZ, _ = self._direct_computation(self.u, v)
         return logZ
 

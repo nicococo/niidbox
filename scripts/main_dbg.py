@@ -25,7 +25,6 @@ def get_test_data(exms, train):
             A[i, i-j] = 1
     A = co.sparse(co.matrix(A))
     inds = np.random.permutation(exms)
-    uinds = inds[train:]
     linds = inds[:train]
     lbpa = TCRFR_lbpa(x.T.copy(), y[linds].copy(), linds,  states=2, A=A, reg_gamma=10., reg_theta=0.8, trans_sym=[1])
     qp   = TCRFR_QP(x.T.copy(), y[linds].copy(), linds, states=2, A=A, reg_gamma=10., reg_theta=0.8, trans_sym=[1])
@@ -34,15 +33,17 @@ def get_test_data(exms, train):
 
 
 def test_bf():
-    lbpa, qp, bf, x, y, z = get_test_data(14, 6)
+    lbpa, qp, bf, x, y, z = get_test_data(14, 0)
     # lbpa.fix_lbl_map = True
     # lbpa.fit(use_grads=False)
     # qp.fit(use_grads=False)
-    qp.fit(use_grads=False)
+    #qp.fit(use_grads=False)
+    qp.u, qp.v = qp.get_hotstart()
     bf.map_inference(qp.u, lbpa.unpack_v(qp.v))
+    lbpa.verbosity_level = 2
     lbpa.map_inference(qp.u, lbpa.unpack_v(qp.v))
 
-    lbpa.fit()
+    #lbpa.fit()
 
     print 'STATES ------------------------'
     foo = np.zeros(lbpa.samples, dtype=np.int8)
@@ -52,16 +53,15 @@ def test_bf():
     print 'BF     = ', bf.latent
     print 'QP     = ', qp.latent
     print 'LBPA   = ', lbpa.latent
-
-    logZ_bf = bf.log_partition(lbpa.unpack_v(qp.v))
-    for i in range(10):
-        logZ_pl = lbpa.log_partition(lbpa.unpack_v(qp.v))
-        logZ_unary = lbpa.log_partition_unary(lbpa.unpack_v(qp.v))
-
-    print 'logZ ------------------------'
-    print 'True   = ', logZ_bf
-    print 'Pseudo-likelihood   = ', logZ_pl
-    print 'Unary   = ', logZ_unary
+    #
+    # logZ_bf = bf.log_partition(lbpa.unpack_v(qp.v))
+    # logZ_pl = lbpa.log_partition(lbpa.unpack_v(qp.v))
+    # logZ_unary = lbpa.log_partition_unary(lbpa.unpack_v(qp.v))
+    #
+    # print 'logZ ------------------------'
+    # print 'True   = ', logZ_bf
+    # print 'Pseudo-likelihood   = ', logZ_pl
+    # print 'Unary   = ', logZ_unary
 
 
 def test_constr_speed():

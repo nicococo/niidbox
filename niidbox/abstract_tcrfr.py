@@ -24,6 +24,11 @@ class AbstractTCRFR(object):
 
     verbosity_level = 0     # (0: no prints, 1:print some globally interesting stuff (iterations etc), 2:print debugs
 
+    # types of log-partition functions
+    LOGZ_PL_MAP = 1     # use pseudolikelihood (PL) using the current MAP estimates
+    LOGZ_PL_SUM = 2     # use pseudolikelihood (PL) with summation over neighbors
+    LOGZ_UNARY  = 3     # only consider unary terms
+
     data = None             # (either matrix or list) data
     labels = None           # (list or matrix or array) labels
     label_inds = None       # index of corresponding data object for each label
@@ -80,6 +85,7 @@ class AbstractTCRFR(object):
                  reg_theta=0.5, reg_lambda=0.001, reg_gamma=1.0, trans_regs=[1.0], trans_sym=[1], verbosity_level=1):
         # set verbosity
         self.verbosity_level = verbosity_level
+        self.set_log_partition(self.LOGZ_PL_SUM)
 
         # sparse connectivity matrix (numbers indicate the type of connection = id of transition matrix)
         self.A = A
@@ -467,8 +473,15 @@ class AbstractTCRFR(object):
     def map_inference(self, u, v):
         raise NotImplementedError
 
+    def set_log_partition(self, type):
+        self.log_partition = self.log_partition_pl  # default
+        if type == self.LOGZ_PL_MAP:
+            self.log_partition = self.log_partition_pl
+        elif type == self.LOGZ_UNARY:
+            self.log_partition = self.log_partition_unary
+
     def log_partition(self, v):
-        return self.log_partition_pl(v)
+        pass
 
     def log_partition_derivative(self, v):
         """

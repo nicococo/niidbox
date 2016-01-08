@@ -201,7 +201,8 @@ class TCRFR_QP(AbstractTCRFR):
         # pair-wise potentials
         cnt = 0
         for e in self.E:
-            etype = self.A[e[0], e[1]]
+            # etype = self.A[e[0], e[1]]
+            etype = e[2]
             etype_offset = (etype-1)*self.trans_d_full
             d[cnt:cnt+states*states] = param_v[etype_offset:etype_offset+states*states]
             cnt += states*states

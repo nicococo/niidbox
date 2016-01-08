@@ -142,7 +142,7 @@ def _extern_map_lbp(data, labels, label_inds, unlabeled_inds, N, N_inv, N_weight
     iter = 0
     change = 1e16
     foo = np.zeros(states)
-    while change>1e-3 and iter<50:
+    while change > 1e-3 and iter < 50:
         change = 0.0
         for i in range(samples):
             # get neighbors and weights
