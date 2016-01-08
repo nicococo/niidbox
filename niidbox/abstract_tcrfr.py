@@ -1,4 +1,5 @@
 from cvxopt.base import matrix
+import cvxopt as co
 import numpy as np
 
 from scipy import optimize as op
@@ -9,7 +10,7 @@ from abc import ABCMeta, abstractmethod
 
 from numba import autojit
 
-from tools import profile
+from utils import profile
 
 __author__ = 'nicococo'
 
@@ -112,9 +113,16 @@ class AbstractTCRFR(object):
         self.trans_total_dims = np.int(n_sym_mtx * self.trans_d_sym + (self.trans_n - n_sym_mtx) * self.trans_d_full)
 
         self.V = range(verts)
+        AI = np.array(A.I, dtype=np.int)
+        AJ = np.array(A.J, dtype=np.int)
+        AV = np.array(A.V, dtype=np.int8)
+
         # neighbor array (and weights {0,1} for each vertex
-        max_conn = np.int(max(self.A*matrix(1, (self.A.size[0], 1), tc='i')))
-        print max_conn
+        cnt_neighbors = np.zeros(verts, dtype=np.int)
+        for i in AI[AV > 0]:
+            cnt_neighbors[i] += 1
+        max_conn = np.max(cnt_neighbors)
+        print("Maximum number of neigbhors is {0}.".format(max_conn))
         self.N = np.zeros((len(self.V), max_conn), dtype=np.int32)
         self.N_inv = np.zeros((len(self.V), max_conn), dtype=np.int32)
         self.N_weights = np.zeros((len(self.V), max_conn), dtype=np.int8)
@@ -124,14 +132,11 @@ class AbstractTCRFR(object):
 
         # construct edge matrix
         t = time.time()
-        AI = A.I
-        AJ = A.J
-        AV = np.array(A.V, dtype=np.int8)
         num_entries = np.int(np.sum(AV > 0))
         num_edges = np.int(num_entries / 2)
+        assert 2*num_edges == num_entries  # is assumed to be twice the number of edges!
         self.E = np.zeros((num_edges, 3), dtype=np.int64)
         print num_entries, num_edges
-        assert 2*num_edges == num_entries  # is assumed to be twice the number of edges!
         cnt = 0
         for idx in range(AV.size):
             s = AI[idx]
@@ -142,7 +147,7 @@ class AbstractTCRFR(object):
                 N_edge_idx[s] += 1
                 cnt += 1
                 # update neighbors
-                self.N_inv[s, N_idx[s]] = N_idx[n]     # N[j, N_inv[i,j]] = i
+                self.N_inv[s, N_idx[s]] = N_idx[n]     # N[j, N_inv[i, jidx]] = i, with   N[i, jidx]=j
                 self.N_inv[n, N_idx[n]] = N_idx[s]     
 
                 self.N[s, N_idx[s]] = n

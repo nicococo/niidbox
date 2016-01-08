@@ -1,7 +1,7 @@
 import numpy as np
 
 from abstract_tcrfr import AbstractTCRFR
-from tools import profile
+from utils import profile
 
 class TCRFR_BF(AbstractTCRFR):
     """ Pairwise Conditional Random Field for transductive regression.

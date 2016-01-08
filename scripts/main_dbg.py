@@ -6,9 +6,9 @@ from tcrfr_qp import TCRFR_QP
 from tcrfr_lbpa import TCRFR_lbpa
 from tcrfr_lbpa_iset import TCRFR_lbpa_iset
 
-from test_setup import get_1d_toy_data, evaluate
+from utils_experiment import get_1d_toy_data, evaluate
 
-from tools import profile, print_profiles
+from utils import profile, print_profiles
 
 def get_test_data(exms, train):
     # generate toy data

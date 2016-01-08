@@ -5,7 +5,7 @@ from numba import autojit
 
 from abstract_tcrfr import AbstractTCRFR
 from tcrfr_lbpa import TCRFR_lbpa
-from tools import profile
+from utils import profile
 
 
 class TCRFR_lbpa_iset(TCRFR_lbpa):
@@ -29,7 +29,9 @@ class TCRFR_lbpa_iset(TCRFR_lbpa):
     isets = None            # list of np.array indices of cluster-memberships
     iset_type = None        # 3 types (per cluster): 0-no lbld exms, 1-one lbld exm, 2-multiple lbld exms
     iset_lbl_inds = None    # for each cluster a (np.array-)list of labeled examples
+
     iset_edges = None       # number of edges in each cluster
+    iset_vertices = None    # number of vertices in each cluster
 
     iset_type1 = None       # indices of clusters of type 1
     iset_type1_lbl = None   # indices of the label of clusters of type 1
@@ -53,11 +55,13 @@ class TCRFR_lbpa_iset(TCRFR_lbpa):
         type1_lbl_inds = []
         self.iset_lbl_inds = []
         self.iset_type = np.zeros(self.num_isets, dtype=np.int8)
+        self.iset_vertices = np.zeros(self.num_isets, dtype=np.float)
         self.data_means = np.zeros( (self.feats, self.num_isets), dtype=np.float64)
         self.data_iset = np.zeros(self.samples, dtype=np.int32)
 
         for i in range(self.num_isets):
             # calculate cluster means
+            self.iset_vertices[i] = self.isets[i].size
             self.data_means[:, i] = np.mean(self.data[:, self.isets[i]], axis=1)
             inds = np.intersect1d(self.label_inds, self.isets[i])
             self.iset_lbl_inds.append(inds)
@@ -74,7 +78,7 @@ class TCRFR_lbpa_iset(TCRFR_lbpa):
         self.iset_type1_lbl = np.array(type1_lbl_inds, dtype=np.int)
 
         cnt_wrong_edges = 0
-        self.iset_edges = np.zeros(len(self.isets), dtype=np.int32)
+        self.iset_edges = np.zeros(len(self.isets), dtype=np.float)
         for e in self.E:
             self.iset_edges[self.data_iset[e[0]]] += 2
             if self.data_iset[e[0]]!=self.data_iset[e[1]]:
@@ -154,13 +158,13 @@ class TCRFR_lbpa_iset(TCRFR_lbpa):
         # of each node (indices are 0 for non-neighbors, therefore N_weights is need to multiply this
         # unvalid value with 0.
         v_em = v[self.trans_n*self.trans_d_full:].reshape((self.feats, self.S), order='F')
-        f_inner = np.zeros((self.S, self.num_isets))
+        f_inner = np.zeros((self.S, self.num_isets), dtype=np.float)
 
         for s1 in range(self.S):
             f_trans = np.zeros(self.num_isets)
             for s2 in range(self.S):
                 f_trans += v[self.trans_mtx2vec_full[s1, s2]]*self.iset_edges
-            f_inner[s1, :] = v_em[:, s1].dot(self.data_means) + f_trans
+            f_inner[s1, :] = v_em[:, s1].dot(self.data_means)*self.iset_vertices + f_trans
 
         # exp-trick (to prevent NAN because of large numbers): log[sum_i exp(x_i-a)]+a = log[sum_i exp(x_i)]
         # max_score = np.max(f_inner)

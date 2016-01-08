@@ -7,7 +7,7 @@ import cvxopt.solvers as solver
 from numba import autojit
 
 from abstract_tcrfr import AbstractTCRFR
-from tools import profile
+from utils import profile
 
 class TCRFR_QP(AbstractTCRFR):
     """ Pairwise Conditional Random Field for transductive regression.
