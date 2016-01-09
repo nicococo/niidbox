@@ -32,13 +32,13 @@ def get_1d_toy_data(num_exms=300, plot=False):
     gx = np.linspace(0, 1, grid_x)
     # latent variable z
     z = np.zeros(grid_x, dtype=np.uint8)
-    zx = np.where(gx >= 0.5)[0]
+    zx = np.where(gx >= 0.4)[0]
     z[zx] = 1
     # inputs  x
-    x = 1.2*np.sign(z-0.5)*gx + 0.4*np.random.randn(grid_x)
+    x = 1.2*(z-0.5)*gx + 0.4*np.random.randn(grid_x)
 
     # ..and corresponding target value y
-    y = 4.*z + x*(2.*z+1.) + 0.01*np.random.randn(grid_x)
+    y = 4.*z + x*(4.*z+1.) + 0.01*np.random.randn(grid_x)
 
     vecX = x.reshape(grid_x, 1)
     vecy = y.reshape(grid_x)
@@ -109,21 +109,17 @@ def method_transductive_regression(vecX, vecy, train, test, states=2, params=[0.
 
 
 def method_tcrfr_qp(vecX, vecy, train, test, states=2, params=[0.9, 0.00001, 0.5, 10], true_latent=None, plot=False):
-    A = co.spmatrix(0.0, range(vecX.shape[0]), range(vecX.shape[0]))
-    for i in range(vecX.shape[0]-1):
-        A[i, i+1] = 1
-        A[i+1, i] = 1
-    for k in range(1,  params[3]):
+    A = co.spmatrix(0, [], [], (vecX.shape[0], vecX.shape[0]), tc='d')
+    for k in range(1, params[3]):
         for i in range(vecX.shape[0]-k):
-            if i in train or i+k in train:
-                A[i, i+k] = 1
-                A[i+k, i] = 1
+            A[i, i+k] = 1
+            A[i+k, i] = 1
 
-    tcrfr = TCRFR_QP(data=vecX.T, labels=vecy[train], label_inds=train, unlabeled_inds=test, states=states, A=A,
+    tcrfr = TCRFR_QP(data=vecX.T, labels=vecy[train], label_inds=train, states=states, A=A,
                   reg_theta=params[0], reg_lambda=params[1], reg_gamma=params[2]*float(len(train)+len(test)),
-                  trans_regs=[.05, 0.5], trans_sym=[0])
+                  trans_regs=[1., 1.], trans_sym=[1])
 
-    tcrfr.fit(max_iter=20, use_grads=False)
+    tcrfr.fit(max_iter=20, use_grads=False, auto_adjust=False)
     y_preds, lats = tcrfr.predict()
     print lats
     if plot:
@@ -150,19 +146,16 @@ def method_tcrfr_qp(vecX, vecy, train, test, states=2, params=[0.9, 0.00001, 0.5
 
 
 def method_tcrfr_lbpa(vecX, vecy, train, test, states=2, params=[0.9, 0.00001, 0.5, 10], true_latent=None, plot=False):
-    A = co.spmatrix(0.0, range(vecX.shape[0]), range(vecX.shape[0]))
-    for i in range(vecX.shape[0]-1):
-        A[i, i+1] = 1
-        A[i+1, i] = 1
+    A = co.spmatrix(0, [], [], (vecX.shape[0], vecX.shape[0]), tc='d')
     for k in range(1, params[3]):
         for i in range(vecX.shape[0]-k):
-            if i in train or i+k in train:
-                A[i, i+k] = 1
-                A[i+k, i] = 1
-    tcrfr = TCRFR_lbpa(data=vecX.T, labels=vecy[train], label_inds=train, unlabeled_inds=test, states=states, A=A,
+            A[i, i+k] = 1
+            A[i+k, i] = 1
+
+    tcrfr = TCRFR_lbpa(data=vecX.T, labels=vecy[train], label_inds=train, states=states, A=A,
                   reg_theta=params[0], reg_lambda=params[1], reg_gamma=params[2]*float(len(train)+len(test)),
-                  trans_regs=[.05, 0.5], trans_sym=[0], lbl_weight=1.0)
-    tcrfr.fit(max_iter=20, use_grads=False)
+                  trans_regs=[1., 1.], trans_sym=[1], lbl_weight=1.0)
+    tcrfr.fit(max_iter=20, use_grads=False, auto_adjust=False)
     y_preds, lats = tcrfr.predict()
     print lats
     if plot:
@@ -260,7 +253,7 @@ def main_run(methods, params, vecX, vecy, vecz, train_frac, val_frac, states, pl
     vecX /= np.max(np.abs(vecX[train, :]))
     # vecX *= 4.
     vecy /= np.max(np.abs(vecy[train]))
-    vecy *= 1.
+    vecy *= 10.
     vecX = np.hstack((vecX, np.ones((vecX.shape[0], 1))))
 
     names = []
@@ -344,11 +337,11 @@ def generate_param_set(set_name = 'full'):
             for k in range(len(param_rr)):
                 param_tr.append([param_rr[i][0], 100.*param_rr[j][0], 100.*param_rr[k][0]])
 
-    tcrfr_theta = [0.9]
+    tcrfr_theta = [0.75]
     tcrfr_lambda = [0.000001]
-    tcrfr_gamma = [100.0]
-    tcrfr_k1 = [1]
-    tcrfr_k2 = [1]
+    tcrfr_gamma = [1.0]
+    tcrfr_k1 = [4]
+    tcrfr_k2 = [4]
 
     param_tcrfr_qp = list()
     param_tcrfr_pl = list()

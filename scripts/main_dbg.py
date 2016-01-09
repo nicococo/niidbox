@@ -32,6 +32,59 @@ def get_test_data(exms, train):
     return lbpa, qp, bf, x, y, z
 
 
+def test_smiley():
+    x = np.loadtxt('../../Projects/si.txt')
+    y = np.loadtxt('../../Projects/phi.txt')
+    z = np.loadtxt('../../Projects/facies.txt')
+    height, width = x.shape
+    exms = x.size
+
+    A = co.spmatrix(0, [], [], (exms, exms), tc='d')
+    for i in range(height):
+        for j in range(width):
+            idx = i*width + j
+            idx1 = (i+1)*width + j
+            idx2 = i*width + j + 1
+            if i < height-1:
+                A[idx, idx1] = 1
+                A[idx1, idx] = 1
+            if j < width-1:
+                A[idx, idx2] = 1
+                A[idx2, idx] = 1
+
+
+    x = x.reshape((x.size, 1), order='C')
+    y = y.reshape(y.size, order='C')
+
+    y -= np.mean(y, axis=0)
+    x -= np.mean(x, axis=0)
+    y /= np.max(np.abs(y))
+    y *= 10.0
+    x /= np.max(np.abs(x))
+
+    x = np.hstack([x, np.ones((exms, 1))])
+    print x.shape, y.shape, z.shape
+
+    linds = np.random.permutation(exms)[:np.int(0.2*exms)]
+
+    qp   = TCRFR_QP(x.T.copy(), y[linds].copy(), linds, states=2, A=A, reg_gamma=10., reg_theta=0.75, trans_sym=[1])
+    qp.fit(use_grads=False)
+
+    lbpa = TCRFR_lbpa(x.T.copy(), y[linds].copy(), linds,  states=2, A=A, reg_gamma=10., reg_theta=0.45, trans_sym=[1])
+    lbpa.verbosity_level = 2
+    lbpa.fit(use_grads=False)
+
+    import matplotlib.pyplot as plt
+    plt.figure(1)
+    plt.subplot(1, 3, 1)
+    plt.imshow(z)
+    plt.subplot(1, 3, 2)
+    plt.imshow(lbpa.latent.reshape((height, width), order='C'))
+    plt.subplot(1, 3, 3)
+    plt.imshow(qp.latent.reshape((height, width), order='C'))
+    plt.show()
+
+
 def test_bf():
     lbpa, qp, bf, x, y, z = get_test_data(14, 0)
     # lbpa.fix_lbl_map = True
@@ -134,43 +187,8 @@ def test_lbp():
 
 if __name__ == '__main__':
     test_bf()
+    # test_smiley()
     # test_constr_speed()
     # test_lbp()
 
-    #
-    # lbpa, qp, x, y, z = get_test_data(2000, 100)
-    #
-    # lbpa.get_joint_feature_maps(lbpa.latent)
-    # qp.get_joint_feature_maps(lbpa.latent)
-    #
-    # # fit
-    # # t = time.time()
-    # # lbpa.fit(use_grads=False)
-    # # lbpa_train_time = time.time()-t
-    # #
-    # # t = time.time()
-    # qp.fit(use_grads=False)
-    # # qp_train_time = time.time()-t
-    # #
-    # # _, _ = qp.map_inference(lbpa.u.copy(), lbpa.unpack_v(lbpa.v.copy()))
-    # # qp_latent = qp.latent
-    # #
-    # # _, _ = lbpa.map_inference(lbpa.u.copy(), lbpa.unpack_v(lbpa.v.copy()))
-    # # lbpa_latent = lbpa.latent
-    #
-    #
-    # print 'LOG Z ------------------------'
-    # #print np.log(part_value)
-    # t = time.time()
-    # for i in range(100):
-    #     qp.log_partition(qp.unpack_v(qp.v))
-    # print time.time()-t
-    # # t = time.time()
-    # # for i in range(10):
-    # #     qp.log_partition_bak(lbpa.unpack_v(lbpa.v))
-    # # print time.time()-t
-    #
-    # # print 'TIMES ------------------------'
-    # # print qp_train_time
-    # # print lbpa_train_time
     print_profiles()

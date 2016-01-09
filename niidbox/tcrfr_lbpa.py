@@ -142,9 +142,11 @@ def _extern_map_lbp(data, labels, label_inds, unlabeled_inds, N, N_inv, N_weight
     iter = 0
     change = 1e16
     foo = np.zeros(states)
-    while change > 1e-3 and iter < 50:
+    foo_full = np.zeros(states)
+    while change > 1e-5 and iter < 50:
         change = 0.0
         for i in range(samples):
+            # i = np.random.randint(0, samples)
             # get neighbors and weights
             num_neighs = np.sum(N_weights[i, :])
             neighs = N[i, :num_neighs]
@@ -154,15 +156,16 @@ def _extern_map_lbp(data, labels, label_inds, unlabeled_inds, N, N_inv, N_weight
                 max_msg = -1e12
                 for s in range(states):
                     for t in range(states):
-
                         sum_msg = 0.
+                        msg_j = 0.
                         for n1 in range(num_neighs):
-                            if not n1==j:
-                                sum_msg += msgs[neighs[n1], N_inv[i, n1], t]
-
-                        foo[t] = unary[t, i] + (1.0 - theta)*(v[trans_mtx2vec_full[s, t]] + sum_msg)
+                            if n1 == j:
+                                msg_j = msgs[neighs[n1], N_inv[i, n1], t]
+                            sum_msg += msgs[neighs[n1], N_inv[i, n1], t]
+                        foo[t] = unary[t, i] + (1.0 - theta)*(v[trans_mtx2vec_full[s, t]] + sum_msg - msg_j)
+                        foo_full[t] = unary[t, i] + (1.0 - theta)*sum_msg
                     msgs[i, j, s] = np.max(foo)
-                    psis[i, j, s] = np.argmax(foo)
+                    psis[i, j, s] = np.argmax(foo_full)
                     if msgs[i, j, s] > max_msg:
                         max_msg = msgs[i, j, s]
 
@@ -170,16 +173,15 @@ def _extern_map_lbp(data, labels, label_inds, unlabeled_inds, N, N_inv, N_weight
                 for m in range(states):
                     msgs[i, j, m] -= max_msg   # normalization of the new message from i->j
                 change += np.sum(np.abs(msgs[i, j, :]-bak))
-
         iter += 1
         if verbosity >= 2:
             print change
 
     # BACKTRACKING INIT: choose maximizing state for the last variable that was optimized
-    i = np.int(samples-1)
+    #i = samples-1
     num_neighs = np.sum(N_weights[i, :])
     neighs = N[i, :num_neighs]
-    foo = np.zeros(states)
+    foo = np.zeros(states, dtype=np.float32)
     for t in range(states):
         sum_msg = 0.
         for n1 in range(num_neighs):
@@ -187,6 +189,7 @@ def _extern_map_lbp(data, labels, label_inds, unlabeled_inds, N, N_inv, N_weight
         foo[t] = unary[t, i] + (1.0 - theta)*sum_msg
 
     # backtracking step
+    # debug: return backtracking(i, latent, np.argmax(foo), psis, N, N_inv, N_weights)
     idxs = np.zeros(samples, dtype=np.int32)
     latent[i] = np.argmax(foo)
     idxs[0] = i
@@ -198,12 +201,12 @@ def _extern_map_lbp(data, labels, label_inds, unlabeled_inds, N, N_inv, N_weight
                 latent[N[i, j]] = psis[N[i, j], N_inv[i, j], latent[i]]
                 idxs[cnt] = N[i, j]
                 cnt += 1
-
     return latent
 
 
 @autojit(nopython=False)
 def backtracking(i, latent, fixed, psis, N, N_inv, N_weights):
+    # print i, latent[i], np.sum(N_weights[i, :])
     if latent[i]>-1:
         return latent
     latent[i] = fixed

@@ -173,10 +173,6 @@ class AbstractTCRFR(object):
         self.reg_theta = reg_theta
 
         # check the data
-        self.data = data
-        self.labels = np.array(labels)
-        self.label_inds = np.array(label_inds, dtype=np.int)
-        self.unlabeled_inds = np.setdiff1d(np.arange(self.samples), self.label_inds)
         # assume either co.matrix or list-of-objects
         if isinstance(data, matrix):
             self.feats, self.samples = data.size
@@ -186,6 +182,11 @@ class AbstractTCRFR(object):
             self.isListOfObjects = False
         else:
             raise Exception("Could not recognize input data format.")
+
+        self.data = data
+        self.labels = np.array(labels)
+        self.label_inds = np.array(label_inds, dtype=np.int)
+        self.unlabeled_inds = np.setdiff1d(np.arange(self.samples), self.label_inds)
 
         # init crf-regularization matrix
         self.init_Q()

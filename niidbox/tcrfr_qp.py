@@ -104,7 +104,7 @@ class TCRFR_QP(AbstractTCRFR):
         P, q = self.get_qp_params(u, v, theta)
 
         # solver.options['MOSEK'] = {msk.iparam.log: 0}   # cannot be called from anaconda environment
-        solution = solver.qp(P, q, G, h, A, b, solver='mosek')
+        solution = solver.qp(2.0*P, q, G, h, A, b, solver='mosek')
         res = solution['x']
 
         # print solution['primal objective']
@@ -117,7 +117,7 @@ class TCRFR_QP(AbstractTCRFR):
         max_states = np.zeros(vertices, dtype='i')
 
         # error check
-        if self.verbosity_level>=2:
+        if self.verbosity_level >= 2:
             print solution['status']
         if res is None:
             print('QP optimization did not finish (status):')
@@ -230,7 +230,7 @@ class TCRFR_QP(AbstractTCRFR):
 
             for s1 in range(states):
                 for s2 in range(states):
-                    P[i_start+s1, i_start+s2] = 2.0*u[:, s2].T.dot(self.data[:, ind]) * u[:, s1].T.dot(self.data[:, ind])
+                    P[i_start+s1, i_start+s2] = 1.0*u[:, s2].T.dot(self.data[:, ind]) * u[:, s1].T.dot(self.data[:, ind])
             # next label
             idx += 1
 

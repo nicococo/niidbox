@@ -213,6 +213,7 @@ def _extern_map_partial_lbp(data, labels, label_inds, N, N_inv, N_weights, \
     iter = 0
     change = 1e16
     foo = np.zeros(states)
+    foo_full = np.zeros(states)
     while change>1e-3 and iter<50:
         change = 0.0
         for i in sample_inds:
@@ -225,15 +226,16 @@ def _extern_map_partial_lbp(data, labels, label_inds, N, N_inv, N_weights, \
                 max_msg = -1e12
                 for s in range(states):
                     for t in range(states):
-
                         sum_msg = 0.
+                        msg_j = 0.
                         for n1 in range(num_neighs):
-                            if not n1 == j:
-                                sum_msg += msgs[neighs[n1], N_inv[i, n1], t]
-
-                        foo[t] = unary[t, i] + (1.0 - theta)*(v[trans_mtx2vec_full[s, t]] + sum_msg)
+                            if n1 == j:
+                                msg_j = msgs[neighs[n1], N_inv[i, n1], t]
+                            sum_msg += msgs[neighs[n1], N_inv[i, n1], t]
+                        foo[t] = unary[t, i] + (1.0 - theta)*(v[trans_mtx2vec_full[s, t]] + sum_msg - msg_j)
+                        foo_full[t] = unary[t, i] + (1.0 - theta)*sum_msg
                     msgs[i, j, s] = np.max(foo)
-                    psis[i, j, s] = np.argmax(foo)
+                    psis[i, j, s] = np.argmax(foo_full)
                     if msgs[i, j, s] > max_msg:
                         max_msg = msgs[i, j, s]
 
@@ -241,7 +243,6 @@ def _extern_map_partial_lbp(data, labels, label_inds, N, N_inv, N_weights, \
                 for m in range(states):
                     msgs[i, j, m] -= max_msg   # normalization of the new message from i->j
                 change += np.sum(np.abs(msgs[i, j, :]-bak))
-
         iter += 1
         if verbosity >= 2:
             print change
