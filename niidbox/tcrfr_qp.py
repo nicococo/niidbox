@@ -217,7 +217,8 @@ class TCRFR_QP(AbstractTCRFR):
                 sol_cnt += feats
                 cnt += 1
 
-        P = spmatrix(0.0, range(dims), range(dims))
+        P = spmatrix(0., [], [], (dims, dims))
+        # P = spmatrix(0.0, range(dims), range(dims))
 
         # ridge regression part
         cnt = offset

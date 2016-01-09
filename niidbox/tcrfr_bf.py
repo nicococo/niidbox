@@ -40,6 +40,7 @@ class TCRFR_BF(AbstractTCRFR):
         v = v.reshape((v.size, 1))
 
         # test every single combination
+        opt_list = []
         for i in range(num_combs):
             comb = np.base_repr(i, base=self.S)  # convert current id of combinations to string of states
             states = np.zeros(self.samples, dtype=np.int8)
@@ -52,16 +53,21 @@ class TCRFR_BF(AbstractTCRFR):
 
             obj_rr = y - u.T.dot(phis[:, self.label_inds]).T
             obj_rr = 0.5 * np.sum(obj_rr*obj_rr)
-            obj = -(self.reg_theta*obj_rr + (1.-self.reg_theta)*obj_crf)
+            map_obj = -(self.reg_theta*obj_rr + (1.-self.reg_theta)*obj_crf)
 
             # partition function and gradient
             part_value += np.exp(-obj_crf)
             part_grad += psi*np.exp(-obj_crf)
 
-            if obj >= max_obj:
-                max_obj = obj
+            if np.abs(map_obj-max_obj) < 1e-12:
+                opt_list.append(states)
+            elif map_obj > max_obj:
+                max_obj = map_obj
                 max_states = states
                 max_psi = psi
+                opt_list = [max_states]
+
+        print opt_list
 
         return max_obj, max_states, max_psi, np.float64(np.log(part_value)), part_grad.reshape((part_grad.size))
 

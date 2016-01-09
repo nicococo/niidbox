@@ -162,8 +162,10 @@ def _extern_map_lbp(data, labels, label_inds, unlabeled_inds, N, N_inv, N_weight
                             if n1 == j:
                                 msg_j = msgs[neighs[n1], N_inv[i, n1], t]
                             sum_msg += msgs[neighs[n1], N_inv[i, n1], t]
-                        foo[t] = unary[t, i] + (1.0 - theta)*(v[trans_mtx2vec_full[s, t]] + sum_msg - msg_j)
-                        foo_full[t] = unary[t, i] + (1.0 - theta)*sum_msg
+                        foo[t] = unary[t, i] + (1.0 - theta)*(v[trans_mtx2vec_full[s, t]]) + sum_msg - msg_j
+                        # foo_full[t] = unary[t, i] + (1.0 - theta)*(v[trans_mtx2vec_full[s, t]]+sum_msg)  # ERR! 1: msgs include transition term already
+                        # foo_full[t] = unary[t, i] + (1.0 - theta)*sum_msg  # ERR! 2: msgs are (1-theta)-normalized already
+                        foo_full[t] = unary[t, i] + sum_msg
                     msgs[i, j, s] = np.max(foo)
                     psis[i, j, s] = np.argmax(foo_full)
                     if msgs[i, j, s] > max_msg:
@@ -182,11 +184,12 @@ def _extern_map_lbp(data, labels, label_inds, unlabeled_inds, N, N_inv, N_weight
     num_neighs = np.sum(N_weights[i, :])
     neighs = N[i, :num_neighs]
     foo = np.zeros(states, dtype=np.float32)
-    for t in range(states):
+    for s in range(states):
         sum_msg = 0.
         for n1 in range(num_neighs):
-            sum_msg += msgs[neighs[n1], N_inv[i, n1], t]
-        foo[t] = unary[t, i] + (1.0 - theta)*sum_msg
+            sum_msg += msgs[neighs[n1], N_inv[i, n1], s]
+        foo[s] = unary[s, i] + sum_msg
+        #foo[s] = unary[s, i] + (1. - theta)*sum_msg  # ERR!: msgs are (1-theta)-normalized already
 
     # backtracking step
     # debug: return backtracking(i, latent, np.argmax(foo), psis, N, N_inv, N_weights)

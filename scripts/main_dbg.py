@@ -65,14 +65,15 @@ def test_smiley():
     x = np.hstack([x, np.ones((exms, 1))])
     print x.shape, y.shape, z.shape
 
-    linds = np.random.permutation(exms)[:np.int(0.2*exms)]
+    linds = np.random.permutation(exms)[:np.int(0.1*exms)]
 
-    qp   = TCRFR_QP(x.T.copy(), y[linds].copy(), linds, states=2, A=A, reg_gamma=10., reg_theta=0.75, trans_sym=[1])
+    qp   = TCRFR_QP(x.T.copy(), y[linds].copy(), linds, states=2, A=A, reg_gamma=10., reg_theta=0.85, trans_sym=[1])
     qp.fit(use_grads=False)
 
-    lbpa = TCRFR_lbpa(x.T.copy(), y[linds].copy(), linds,  states=2, A=A, reg_gamma=10., reg_theta=0.45, trans_sym=[1])
+    lbpa = TCRFR_lbpa(x.T.copy(), y[linds].copy(), linds,  states=2, A=A, reg_gamma=10., reg_theta=0.85, trans_sym=[1])
     lbpa.verbosity_level = 2
     lbpa.fit(use_grads=False)
+    #lbpa.map_inference(qp.u, lbpa.unpack_v(qp.v))
 
     import matplotlib.pyplot as plt
     plt.figure(1)
@@ -87,13 +88,14 @@ def test_smiley():
 
 def test_bf():
     lbpa, qp, bf, x, y, z = get_test_data(14, 0)
+    lbpa.verbosity_level = 2
     # lbpa.fix_lbl_map = True
     # lbpa.fit(use_grads=False)
     # qp.fit(use_grads=False)
     #qp.fit(use_grads=False)
     qp.u, qp.v = qp.get_hotstart()
+    qp.map_inference(qp.u, lbpa.unpack_v(qp.v))
     bf.map_inference(qp.u, lbpa.unpack_v(qp.v))
-    lbpa.verbosity_level = 2
     lbpa.map_inference(qp.u, lbpa.unpack_v(qp.v))
 
     #lbpa.fit()
