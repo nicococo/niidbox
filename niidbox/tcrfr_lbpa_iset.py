@@ -37,7 +37,7 @@ class TCRFR_lbpa_iset(TCRFR_lbpa):
     iset_type1_lbl = None   # indices of the label of clusters of type 1
 
     data_means = None       # the overall mean of the input instances for each cluster
-    data_iset = None        # for each data point its corresponding cluster
+    data_iset = None        # for each niidbox-data point its corresponding cluster
 
     def __init__(self, cluster, data, labels, label_inds, states, A,
                  reg_theta=0.5, reg_lambda=0.001, reg_gamma=1.0, trans_regs=[1.0, 1.0],
@@ -49,7 +49,7 @@ class TCRFR_lbpa_iset(TCRFR_lbpa):
                  reg_theta, reg_lambda, reg_gamma, trans_regs, trans_sym, verbosity_level=verbosity_level)
 
         # ASSUMPTION I: cluster do NOT share any edges (completely independent of each other)
-        # ASSUMPTION II: data is clustered, hence, input instances within each cluster look similar
+        # ASSUMPTION II: niidbox-data is clustered, hence, input instances within each cluster look similar
         # calculate the means of the clusters
         type1_inds = []
         type1_lbl_inds = []

@@ -8,7 +8,7 @@ from scripts.utils_experiment import get_1d_toy_data
 from tcrfr_lbpa_iset import TCRFR_lbpa_iset
 from tcrfr_qp import TCRFR_QP
 
-x = None  # contains the (normalized) data
+x = None  # contains the (normalized) niidbox-data
 y = None  # regression labels for training subset
 z = None  # ground truth latent states
 
@@ -22,7 +22,7 @@ def setup(fun=None, exms=10, train=5, deps=1, add_intercept=True):
     global A, labeled_inds, unlabeled_inds, x, y, z
     print "Generate {0} examples, {1} labeled, {2} edges/exm. Add intercept: {3}".format(exms, train, deps, add_intercept)
     x, y, z = get_1d_toy_data(exms, plot=False)
-    # normalize data
+    # normalize niidbox-data
     y -= np.mean(y, axis=0)
     y /= np.max(np.abs(y))
     x -= np.mean(x, axis=0)
@@ -44,7 +44,7 @@ def setup(fun=None, exms=10, train=5, deps=1, add_intercept=True):
 
 @with_setup(setup=partial(setup, exms=4, train=0, deps=2, add_intercept=True))
 def test_toy_data():
-    print "Test the data generation process."
+    print "Test the niidbox-data generation process."
     vals = np.array(A.V, dtype=np.int)
     assert A.size == (4, 4)  # we expect a squared matrix
     assert np.sum(vals) == 2*4-2  # chain-model, hence nodes*2-2 edges

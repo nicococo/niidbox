@@ -10,7 +10,7 @@ from utils import profile
 class TCRFR_lbpa(AbstractTCRFR):
     """ Pairwise Conditional Random Field for transductive regression.
     """
-    fix_lbl_map = False  # fix the labeled data in the inference (only infer once after calling map_inference)?
+    fix_lbl_map = False  # fix the labeled niidbox-data in the inference (only infer once after calling map_inference)?
 
     MAP_BP = 0     # (default) Loopy-belief propagation numba-optimized
     MAP_LBPA = 1   # Loopy-belief propagation approximation

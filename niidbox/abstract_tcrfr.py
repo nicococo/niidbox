@@ -29,16 +29,16 @@ class AbstractTCRFR(object):
     LOGZ_PL_SUM = 2     # use pseudolikelihood (PL) with summation over neighbors
     LOGZ_UNARY  = 3     # only consider unary terms
 
-    data = None             # (either matrix or list) data
+    data = None             # (either matrix or list) niidbox-data
     labels = None           # (list or matrix or array) labels
-    label_inds = None       # index of corresponding data object for each label
+    label_inds = None       # index of corresponding niidbox-data object for each label
     unlabeled_inds = None   # indices for unlabeled examples
 
     latent_prev = None   # (#V in {0,...,S-1}) previous latent states
-    latent = None        # (#V in {0,...,S-1}) latent states (1-to-1 correspondence to data/labels object)
+    latent = None        # (#V in {0,...,S-1}) latent states (1-to-1 correspondence to niidbox-data/labels object)
     latent_fixed = None  # (#V int) '1':corresponding state in 'latent' is fixed
 
-    samples = -1  # (scalar) number of training data samples
+    samples = -1  # (scalar) number of training niidbox-data samples
     feats = -1    # (scalar) number of features != get_num_dims() !!!
 
     reg_lambda = 0.001  # (scalar) the regularization constant > 0
@@ -172,7 +172,7 @@ class AbstractTCRFR(object):
         self.reg_gamma = reg_gamma
         self.reg_theta = reg_theta
 
-        # check the data
+        # check the niidbox-data
         # assume either co.matrix or list-of-objects
         if isinstance(data, matrix):
             self.feats, self.samples = data.size
@@ -181,7 +181,7 @@ class AbstractTCRFR(object):
             self.feats, self.samples = data.shape
             self.isListOfObjects = False
         else:
-            raise Exception("Could not recognize input data format.")
+            raise Exception("Could not recognize input niidbox-data format.")
 
         self.data = data
         self.labels = np.array(labels)

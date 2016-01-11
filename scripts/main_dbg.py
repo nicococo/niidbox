@@ -11,7 +11,7 @@ from utils_experiment import get_1d_toy_data, evaluate
 from utils import profile, print_profiles
 
 def get_test_data(exms, train):
-    # generate toy data
+    # generate toy niidbox-data
     x, y, z = get_1d_toy_data(exms, plot=False)
     y -= np.mean(y, axis=0)
     x -= np.mean(x, axis=0)
@@ -33,11 +33,31 @@ def get_test_data(exms, train):
 
 
 def test_smiley():
-    x = np.loadtxt('../../Projects/si.txt')
-    y = np.loadtxt('../../Projects/phi.txt')
-    z = np.loadtxt('../../Projects/facies.txt')
-    height, width = x.shape
-    exms = x.size
+    # x = np.loadtxt('../../Projects/si.txt')
+    # y = np.loadtxt('../../Projects/phi.txt')
+    # z = np.loadtxt('../../Projects/facies.txt')
+    # height, width = x.shape
+    # exms = x.size
+
+    # x = x.reshape((x.size, 1), order='C')
+    # y = y.reshape(y.size, order='C')
+    #
+    # y -= np.mean(y, axis=0)
+    # x -= np.mean(x, axis=0)
+    # y /= np.max(np.abs(y))
+    # y *= 10.0
+    # x /= np.max(np.abs(x))
+    #
+    # x = np.hstack([x, np.ones((exms, 1))])
+    # print x.shape, y.shape, z.shape
+
+    data = np.load('niidbox-data/data_smiley.npz')
+    x = data['x']
+    y = data['y']
+    z = data['latent']
+    width = data['width']
+    height = data['height']
+    exms = x.shape[0]
 
     A = co.spmatrix(0, [], [], (exms, exms), tc='d')
     for i in range(height):
@@ -52,20 +72,7 @@ def test_smiley():
                 A[idx, idx2] = 1
                 A[idx2, idx] = 1
 
-
-    x = x.reshape((x.size, 1), order='C')
-    y = y.reshape(y.size, order='C')
-
-    y -= np.mean(y, axis=0)
-    x -= np.mean(x, axis=0)
-    y /= np.max(np.abs(y))
-    y *= 10.0
-    x /= np.max(np.abs(x))
-
-    x = np.hstack([x, np.ones((exms, 1))])
-    print x.shape, y.shape, z.shape
-
-    linds = np.random.permutation(exms)[:np.int(0.1*exms)]
+    linds = np.random.permutation(exms)[:np.int(0.3*exms)]
 
     qp   = TCRFR_QP(x.T.copy(), y[linds].copy(), linds, states=2, A=A, reg_gamma=10., reg_theta=0.85, trans_sym=[1])
     qp.fit(use_grads=False)
@@ -188,8 +195,8 @@ def test_lbp():
 
 
 if __name__ == '__main__':
-    test_bf()
-    # test_smiley()
+    # test_bf()
+    test_smiley()
     # test_constr_speed()
     # test_lbp()
 

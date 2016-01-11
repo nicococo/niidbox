@@ -247,7 +247,7 @@ def main_run(methods, params, vecX, vecy, vecz, train_frac, val_frac, states, pl
     train = inds[:train_nums]
     test = inds[train_nums:]
 
-    # normalize data
+    # normalize niidbox-data
     vecy = vecy-np.mean(vecy[train])
     vecX = vecX-np.mean(vecX[train, :])
     vecX /= np.max(np.abs(vecX[train, :]))
@@ -270,7 +270,7 @@ def main_run(methods, params, vecX, vecy, vecz, train_frac, val_frac, states, pl
         print params[m]
         if len(params[m]) > 1:
             for p in params[m]:
-                # 1. only training examples are labeled and test performance only on validation data
+                # 1. only training examples are labeled and test performance only on validation niidbox-data
                 print('Train-validate parameters {0} for method {1}'.format(p, methods[m]))
                 (name, _pred, _lats) = methods[m](np.array(vecX, copy=True), np.array(vecy, copy=True),
                                                 np.array(train, copy=True), np.array(test, copy=True),
@@ -282,7 +282,7 @@ def main_run(methods, params, vecX, vecy, vecz, train_frac, val_frac, states, pl
             print("No Train-validation step for method {0}.".format(methods[m]))
             best_param = params[m][0]
 
-        # 2. Using the best parameter to train on training+validation data but test only on test data
+        # 2. Using the best parameter to train on training+validation niidbox-data but test only on test niidbox-data
         print('Test parameters {0} for method {1}'.format(best_param, methods[m]))
         tst_train_nums = np.floor(samples*train_frac)
         tst_train = inds[:tst_train_nums]
@@ -308,10 +308,10 @@ def main_run(methods, params, vecX, vecy, vecz, train_frac, val_frac, states, pl
         plt.show()
 
     print('------------------------------------------')
-    print 'Total data           :', len(train)+len(test)
-    print 'Labeled data (train) :', len(train)
-    print 'Unlabeled data (val) :', val_nums
-    print 'Unlabeled data (test):', len(test)-val_nums
+    print 'Total niidbox-data           :', len(train)+len(test)
+    print 'Labeled niidbox-data (train) :', len(train)
+    print 'Unlabeled niidbox-data (val) :', val_nums
+    print 'Unlabeled niidbox-data (test):', len(test)-val_nums
     print 'Fraction train       :', train_frac
     print 'Fraction val         :', val_frac
     print 'Max States           :', states
