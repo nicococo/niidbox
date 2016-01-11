@@ -28,6 +28,7 @@ class AbstractTCRFR(object):
     LOGZ_PL_MAP = 1     # use pseudolikelihood (PL) using the current MAP estimates
     LOGZ_PL_SUM = 2     # use pseudolikelihood (PL) with summation over neighbors
     LOGZ_UNARY  = 3     # only consider unary terms
+    LOGZ_CONST  = 4     # do not use logZ
 
     data = None             # (either matrix or list) niidbox-data
     labels = None           # (list or matrix or array) labels
@@ -237,10 +238,11 @@ class AbstractTCRFR(object):
         for i in range(self.trans_n):
             foo[cnt:cnt+self.trans_d_full] = 1.0
             for s in range(self.S):
-                idx = self.trans_mtx2vec_full[s, s]
+                idx = self.trans_mtx2vec_full[s, s]+1
                 foo[cnt:cnt+idx] = self.trans_regs[i]
             cnt += self.trans_d_full
         self.Q = np.diag(self.reg_gamma * foo)
+        # print self.Q
 
     def get_trans_converters(self):
         # P: states x states -> states*states
@@ -307,6 +309,9 @@ class AbstractTCRFR(object):
         return obj, u
 
     def fit(self, max_iter=50, hotstart=None, use_grads=True, auto_adjust=True):
+        if auto_adjust:
+            self.reg_gamma = 1.0
+            self.init_Q()
         u, v = self.get_hotstart()
         if hotstart is not None:
             print('Manual hotstart position defined.')
@@ -331,7 +336,7 @@ class AbstractTCRFR(object):
             # 1. infer the latent states given the current intermediate solutions u and v
             phis, psi = self.map_inference(u, self.unpack_v(v))
 
-            if self.verbosity_level >= 2:
+            if self.verbosity_level >= 3:
                 lats = ''
                 for i in range(self.latent.size):
                     lats += '{0}'.format(self.latent[i])
@@ -361,7 +366,7 @@ class AbstractTCRFR(object):
                 best_sol = [cnt_iter, obj, u, v, self.latent]
                 print('*')
 
-            if cnt_iter > 3 and rel < 0.0001:
+            if cnt_iter > 3 and rel < 1e-3:
                 is_converged = True
 
             if np.isinf(obj) or np.isnan(obj):
@@ -480,6 +485,8 @@ class AbstractTCRFR(object):
             self.log_partition = self.log_partition_pl
         elif type == self.LOGZ_UNARY:
             self.log_partition = self.log_partition_unary
+        elif type == self.LOGZ_CONST:
+            self.log_partition = self.log_partition_const
 
     def log_partition(self, v):
         pass
@@ -532,6 +539,9 @@ class AbstractTCRFR(object):
         if np.isnan(foo) or np.isinf(foo):
             print('TCRFR Pairwise Potential Model: the log_partition is NAN or INF!!')
         return foo
+
+    def log_partition_const(self, v):
+        return 0.
 
     @profile
     def log_partition_unary(self, v):

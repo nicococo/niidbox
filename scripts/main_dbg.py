@@ -33,63 +33,92 @@ def get_test_data(exms, train):
 
 
 def test_smiley():
-    # x = np.loadtxt('../../Projects/si.txt')
-    # y = np.loadtxt('../../Projects/phi.txt')
-    # z = np.loadtxt('../../Projects/facies.txt')
-    # height, width = x.shape
-    # exms = x.size
+    x = np.loadtxt('../../Projects/si.txt')
+    y = np.loadtxt('../../Projects/phi.txt')
+    z = np.loadtxt('../../Projects/facies.txt')
+    height, width = x.shape
+    exms = x.size
 
-    # x = x.reshape((x.size, 1), order='C')
-    # y = y.reshape(y.size, order='C')
-    #
-    # y -= np.mean(y, axis=0)
-    # x -= np.mean(x, axis=0)
-    # y /= np.max(np.abs(y))
-    # y *= 10.0
-    # x /= np.max(np.abs(x))
-    #
-    # x = np.hstack([x, np.ones((exms, 1))])
-    # print x.shape, y.shape, z.shape
+    x = x.reshape((x.size, 1), order='C')
+    y = y.reshape(y.size, order='C')
+    z = z.reshape(z.size, order='C')
 
-    data = np.load('niidbox-data/data_smiley.npz')
-    x = data['x']
-    y = data['y']
-    z = data['latent']
-    width = data['width']
-    height = data['height']
-    exms = x.shape[0]
+    x[np.where(z==0)] -= 0.9
+
+    y -= np.mean(y, axis=0)
+    x -= np.mean(x, axis=0)
+    y /= np.max(np.abs(y))
+    y *= 1.0
+    x /= np.max(np.abs(x))
+
+    x = np.hstack([x, np.ones((exms, 1))])
+    print x.shape, y.shape, z.shape
+
+
+    # data = np.load('niidbox-data/data_smiley.npz')
+    # x = data['x']
+    # y = data['y']
+    # z = data['latent']
+    # width = data['width']
+    # height = data['height']
+    # exms = x.shape[0]
+    linds = np.random.permutation(exms)[:np.int(0.4*exms)]
 
     A = co.spmatrix(0, [], [], (exms, exms), tc='d')
-    for i in range(height):
-        for j in range(width):
-            idx = i*width + j
-            idx1 = (i+1)*width + j
-            idx2 = i*width + j + 1
-            if i < height-1:
-                A[idx, idx1] = 1
-                A[idx1, idx] = 1
-            if j < width-1:
-                A[idx, idx2] = 1
-                A[idx2, idx] = 1
+    for k in range(1, 3):
+        for i in range(height):
+            for j in range(width):
+                idx = i*width + j
+                idx1 = (i+k)*width + j
+                idx2 = i*width + j + k
+                if k == 1 or (k>1 and idx in linds) or (k>1 and idx1 in linds) or (k>1 and idx2 in linds):
+                    if i < height-k:
+                        A[idx, idx1] = 1
+                        A[idx1, idx] = 1
+                    if j < width-k:
+                        A[idx, idx2] = 1
+                        A[idx2, idx] = 1
 
-    linds = np.random.permutation(exms)[:np.int(0.3*exms)]
+    qp   = TCRFR_QP(x.T.copy(), y[linds].copy(), linds, states=2, A=A, reg_gamma=10000., reg_theta=0.85, trans_sym=[1])
+    u = np.random.randn(qp.get_num_feats()*qp.S)
+    v = np.random.randn(qp.get_num_compressed_dims())
+    # qp.fit(use_grads=False, hotstart=(u, v), auto_adjust=False)
+    # qp.fit(use_grads=False, hotstart=None, auto_adjust=True)
 
-    qp   = TCRFR_QP(x.T.copy(), y[linds].copy(), linds, states=2, A=A, reg_gamma=10., reg_theta=0.85, trans_sym=[1])
-    qp.fit(use_grads=False)
-
-    lbpa = TCRFR_lbpa(x.T.copy(), y[linds].copy(), linds,  states=2, A=A, reg_gamma=10., reg_theta=0.85, trans_sym=[1])
+    lbpa = TCRFR_lbpa(x.T.copy(), y[linds].copy(), linds,  states=2, A=A,
+                      reg_gamma=100000., reg_theta=0.85, trans_sym=[1], trans_regs=[.1])
     lbpa.verbosity_level = 2
-    lbpa.fit(use_grads=False)
+    lbpa.set_log_partition(lbpa.LOGZ_PL_SUM)
+    #lbpa.fit(use_grads=False, hotstart=(u, v), auto_adjust=False)
+    lbpa.fit(use_grads=False, hotstart=None, auto_adjust=True)
     #lbpa.map_inference(qp.u, lbpa.unpack_v(qp.v))
+
+    # initialize all non-fixed latent variables with random states
+    import sklearn.cluster as cl
+    kmeans = cl.KMeans(n_clusters=2, init='random', n_init=4, max_iter=100, tol=0.0001)
+    kmeans.fit(x)
 
     import matplotlib.pyplot as plt
     plt.figure(1)
-    plt.subplot(1, 3, 1)
-    plt.imshow(z)
-    plt.subplot(1, 3, 2)
+    plt.subplot(1, 7, 1)
+    plt.imshow(y.reshape((height, width), order='C'))
+    plt.subplot(1, 7, 2)
+    plt.imshow(x[:, 0].reshape((height, width), order='C'))
+    plt.subplot(1, 7, 3)
+    plt.imshow(z.reshape((height, width), order='C'))
+    plt.subplot(1, 7, 4)
     plt.imshow(lbpa.latent.reshape((height, width), order='C'))
-    plt.subplot(1, 3, 3)
+    plt.subplot(1, 7, 5)
+    plt.imshow(kmeans.labels_.reshape((height, width), order='C'))
+    plt.subplot(1, 7, 6)
     plt.imshow(qp.latent.reshape((height, width), order='C'))
+    plt.subplot(1, 7, 7)
+    res, _ = lbpa.predict()
+
+    print 'Labels:', linds.size
+    print 'RESULT:', np.sum((res - y)*(res - y))/y.size
+
+    plt.imshow(res.reshape((height, width), order='C'))
     plt.show()
 
 
