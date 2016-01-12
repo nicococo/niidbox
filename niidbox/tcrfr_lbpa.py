@@ -25,10 +25,13 @@ class TCRFR_lbpa(AbstractTCRFR):
                  reg_theta, reg_lambda, reg_gamma, trans_regs, trans_sym, verbosity_level=verbosity_level)
 
         # labeled examples get an extra weight (parameter)
-        for ind in self.V:
-            for i in range(self.N[ind, :].size):
-                if self.N[ind, i] in self.label_inds and self.N_weights[ind, i]>0.00001:
-                    self.N_weights[ind, i] = lbl_weight
+        if np.abs(lbl_weight-1.0) > 1e-6:
+            # only check, if the label weight was changed
+            print('Label weight parameter is set to {0} (takes a while to process..).'.format(lbl_weight))
+            for ind in self.V:
+                for i in range(self.N[ind, :].size):
+                    if self.N[ind, i] in self.label_inds and self.N_weights[ind, i]>0.00001:
+                        self.N_weights[ind, i] = lbl_weight
 
     @profile
     def map_inference(self, u, v):

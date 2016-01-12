@@ -366,7 +366,10 @@ class AbstractTCRFR(object):
                 best_sol = [cnt_iter, obj, u, v, self.latent]
                 print('*')
 
-            if cnt_iter > 3 and rel < 1e-3:
+            # if cnt_iter > 3 and rel < 1e-3:
+            #     is_converged = True
+
+            if cnt_iter > 3 and self.get_latent_diff()<0.1:
                 is_converged = True
 
             if np.isinf(obj) or np.isnan(obj):
