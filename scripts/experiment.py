@@ -4,9 +4,9 @@ from utils_experiment import *
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument("-s", "--states", help="List of states for testing (default=3).", default='2', type=int)
-    parser.add_argument("-f", "--train_frac", help="Fraction of training exms (default=0.15)", default='0.25', type=float)
-    parser.add_argument("-d", "--datapoints", help="Amount of niidbox-data points (default=1000)", default='600', type=int)
+    parser.add_argument("-s", "--states", help="List of states for testing (default=3).", default=2, type=int)
+    parser.add_argument("-f", "--train_frac", help="Fraction of training exms (default=0.15)", default=0.25, type=float)
+    parser.add_argument("-d", "--datapoints", help="Amount of niidbox-data points (default=1000)", default=800, type=int)
     parser.add_argument("-r", "--reps", help="Number of repetitions (default 10)", default=3, type=int)
     parser.add_argument("-m", "--method_set", help="Select active method set. (default 'full')", default='lb,rr,tcrfr_lbpa,tcrfr_qp', type=str)
     arguments = parser.parse_args(sys.argv[1:])

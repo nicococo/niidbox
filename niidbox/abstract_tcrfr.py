@@ -83,7 +83,7 @@ class AbstractTCRFR(object):
 
     @profile
     def __init__(self, data, labels, label_inds, states, A,
-                 reg_theta=0.5, reg_lambda=0.001, reg_gamma=1.0, trans_regs=[1.0], trans_sym=[1], verbosity_level=1):
+                 reg_theta=0.5, reg_lambda=0.001, reg_gamma=1.0, trans_regs=[[1.0, 1.0]], trans_sym=[1], verbosity_level=1):
         # set verbosity
         self.verbosity_level = verbosity_level
         self.set_log_partition(self.LOGZ_PL_SUM)
@@ -111,7 +111,11 @@ class AbstractTCRFR(object):
             self.trans_sym = trans_sym
         # transition matrix regularization
         if len(trans_regs) == 1:
-            self.trans_regs = trans_regs[0]*np.ones(self.trans_n, dtype='i')
+            # if there is only 1 reg. entry but various transition types, then
+            # use these values for all transitions
+            self.trans_regs = trans_regs
+            for i in range(1, self.trans_n):
+                self.trans_regs.append(trans_regs[0])
         else:
             self.trans_regs = trans_regs
         self.trans_mtx2vec_full, self.trans_mtx2vec_sym, self.trans_vec2vec_mtx = self.get_trans_converters()
@@ -238,8 +242,12 @@ class AbstractTCRFR(object):
         for i in range(self.trans_n):
             foo[cnt:cnt+self.trans_d_full] = 1.0
             for s in range(self.S):
-                idx = self.trans_mtx2vec_full[s, s]+1
-                foo[cnt:cnt+idx] = self.trans_regs[i]
+                for t in range(self.S):
+                    idx = self.trans_mtx2vec_full[s, t]
+                    if s == t:
+                        foo[cnt+idx] = self.trans_regs[i][0]
+                    else:
+                        foo[cnt+idx] = self.trans_regs[i][1]
             cnt += self.trans_d_full
         self.Q = np.diag(self.reg_gamma * foo)
         # print self.Q
@@ -369,7 +377,7 @@ class AbstractTCRFR(object):
             # if cnt_iter > 3 and rel < 1e-3:
             #     is_converged = True
 
-            if cnt_iter > 3 and self.get_latent_diff()<0.1:
+            if cnt_iter > 2 and self.get_latent_diff()<0.1:
                 is_converged = True
 
             if np.isinf(obj) or np.isnan(obj):
@@ -485,7 +493,7 @@ class AbstractTCRFR(object):
     def set_log_partition(self, type):
         self.log_partition = self.log_partition_pl  # default
         if type == self.LOGZ_PL_MAP:
-            self.log_partition = self.log_partition_pl
+            self.log_partition = self.log_partition_map
         elif type == self.LOGZ_UNARY:
             self.log_partition = self.log_partition_unary
         elif type == self.LOGZ_CONST:
@@ -538,6 +546,43 @@ class AbstractTCRFR(object):
         max_score = np.repeat(max_score, self.S, axis=0)
         f_inner = np.sum(np.exp(f_inner - max_score), axis=0)
         foo = np.sum(np.log(f_inner) + max_score)
+
+        # f_inner = np.sum(np.exp(f_inner), axis=0)
+        # foo = np.sum(np.log(f_inner))
+
+        # max_score = np.max(f_inner)
+        # f_inner = np.sum(np.exp(f_inner - max_score))
+        # foo = np.log(f_inner) + max_score
+        if np.isnan(foo) or np.isinf(foo):
+            print('TCRFR Pairwise Potential Model: the log_partition is NAN or INF!!')
+        return foo
+
+    @profile
+    def log_partition_map(self, v):
+        # self.N is a (Nodes x max_connection_count) Matrix containing the indices for each neighbor
+        # of each node (indices are 0 for non-neighbors, therefore N_weights is need to multiply this
+        # unvalid value with 0.
+        v_em = v[self.trans_n*self.trans_d_full:].reshape((self.feats, self.S), order='F')
+        f_inner = np.zeros((self.S, self.samples))
+
+        lats = self.latent[self.N]
+        for s1 in range(self.S):
+            f_trans = v[self.trans_mtx2vec_full[s1, lats]] * self.N_weights
+            f_inner[s1, :] = v_em[:, s1].dot(self.data) + np.sum(f_trans, axis=1)
+
+        # exp-trick (to prevent NAN because of large numbers): log[sum_i exp(x_i-a)]+a = log[sum_i exp(x_i)]
+        # max_score = np.max(f_inner)
+        # f_inner = np.sum(np.exp(f_inner - max_score))
+        # foo = np.log(f_inner) + max_score
+
+        max_score = np.max(f_inner, axis=0).reshape((1, self.samples))  # max-score for each sample
+        max_score = np.repeat(max_score, self.S, axis=0)
+        f_inner = np.sum(np.exp(f_inner - max_score), axis=0)
+        foo = np.sum(np.log(f_inner) + max_score)
+
+        # max_score = np.max(f_inner)
+        # f_inner = np.sum(np.exp(f_inner - max_score))
+        # foo = np.log(f_inner) + max_score
 
         if np.isnan(foo) or np.isinf(foo):
             print('TCRFR Pairwise Potential Model: the log_partition is NAN or INF!!')

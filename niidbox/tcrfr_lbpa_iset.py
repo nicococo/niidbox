@@ -40,7 +40,7 @@ class TCRFR_lbpa_iset(TCRFR_lbpa):
     data_iset = None        # for each niidbox-data point its corresponding cluster
 
     def __init__(self, cluster, data, labels, label_inds, states, A,
-                 reg_theta=0.5, reg_lambda=0.001, reg_gamma=1.0, trans_regs=[1.0, 1.0],
+                 reg_theta=0.5, reg_lambda=0.001, reg_gamma=1.0, trans_regs=[[1.0, 1.0]],
                  trans_sym=[1], lbl_weight=1.0, verbosity_level=1):
 
         self.isets = cluster

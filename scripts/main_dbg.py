@@ -61,7 +61,7 @@ def test_smiley():
     width = data['width']
     height = data['height']
     exms = x.shape[0]
-    linds = np.random.permutation(exms)[:np.int(0.4*exms)]
+    linds = np.random.permutation(exms)[:np.int(0.3*exms)]
 
     A = co.spmatrix(0, [], [], (exms, exms), tc='d')
     for k in range(1, 3):
@@ -78,16 +78,20 @@ def test_smiley():
                         A[idx, idx2] = 1
                         A[idx2, idx] = 1
 
-    qp   = TCRFR_QP(x.T.copy(), y[linds].copy(), linds, states=2, A=A, reg_gamma=10000., reg_theta=0.85, trans_sym=[1])
+    qp   = TCRFR_QP(x.T.copy(), y[linds].copy(), linds, states=2, A=A,
+                    reg_gamma=10000., reg_theta=0.85, trans_sym=[1])
     u = np.random.randn(qp.get_num_feats()*qp.S)
     v = np.random.randn(qp.get_num_compressed_dims())
+    #np.savez('../../Projects/hotstart.npz', start=(u, v, linds))
+    #(u, v, linds) = np.load('../../Projects/hotstart.npz')['start']
+
     # qp.fit(use_grads=False, hotstart=(u, v), auto_adjust=False)
     # qp.fit(use_grads=False, hotstart=None, auto_adjust=True)
 
     lbpa = TCRFR_lbpa(x.T.copy(), y[linds].copy(), linds,  states=2, A=A,
-                      reg_gamma=100000., reg_theta=0.85, trans_sym=[1], trans_regs=[.05])
-    lbpa.verbosity_level = 2
-    lbpa.set_log_partition(lbpa.LOGZ_PL_SUM)
+                      reg_gamma=10000., reg_theta=0.995, trans_sym=[1], trans_regs=[[10., 2.]])
+    lbpa.verbosity_level = 3
+    lbpa.set_log_partition(lbpa.LOGZ_PL_MAP)
     lbpa.fit(use_grads=False, hotstart=(u, v), auto_adjust=False)
     #lbpa.fit(use_grads=False, hotstart=None, auto_adjust=True)
     #lbpa.map_inference(qp.u, lbpa.unpack_v(qp.v))
@@ -107,10 +111,13 @@ def test_smiley():
     plt.imshow(z.reshape((height, width), order='C'))
     plt.subplot(1, 7, 4)
     plt.imshow(lbpa.latent.reshape((height, width), order='C'))
+    plt.title('LBP')
     plt.subplot(1, 7, 5)
     plt.imshow(kmeans.labels_.reshape((height, width), order='C'))
+    plt.title('KMeans')
     plt.subplot(1, 7, 6)
     plt.imshow(qp.latent.reshape((height, width), order='C'))
+    plt.title('QP')
     plt.subplot(1, 7, 7)
     res, _ = lbpa.predict()
 
@@ -122,13 +129,15 @@ def test_smiley():
 
 
 def test_bf():
-    lbpa, qp, bf, x, y, z = get_test_data(14, 0)
+    lbpa, qp, bf, x, y, z = get_test_data(10, 4)
     lbpa.verbosity_level = 2
     # lbpa.fix_lbl_map = True
-    # lbpa.fit(use_grads=False)
+    lbpa.fit(use_grads=False)
     # qp.fit(use_grads=False)
-    #qp.fit(use_grads=False)
-    qp.u, qp.v = qp.get_hotstart()
+    # qp.fit(use_grads=False)
+    #u = np.random.randn(qp.get_num_feats()*qp.S)
+    #v = np.random.randn(qp.get_num_compressed_dims())
+    qp.u, qp.v = lbpa.u, lbpa.v
     qp.map_inference(qp.u, lbpa.unpack_v(qp.v))
     bf.map_inference(qp.u, lbpa.unpack_v(qp.v))
     lbpa.map_inference(qp.u, lbpa.unpack_v(qp.v))
@@ -144,14 +153,14 @@ def test_bf():
     print 'QP     = ', qp.latent
     print 'LBPA   = ', lbpa.latent
     #
-    # logZ_bf = bf.log_partition(lbpa.unpack_v(qp.v))
-    # logZ_pl = lbpa.log_partition(lbpa.unpack_v(qp.v))
-    # logZ_unary = lbpa.log_partition_unary(lbpa.unpack_v(qp.v))
-    #
-    # print 'logZ ------------------------'
-    # print 'True   = ', logZ_bf
-    # print 'Pseudo-likelihood   = ', logZ_pl
-    # print 'Unary   = ', logZ_unary
+
+    logZ_bf = bf.log_partition(lbpa.unpack_v(qp.v))
+
+    print 'logZ ------------------------'
+    print 'True                    = ', logZ_bf
+    print 'Pseudo-likelihood SUM   = ', lbpa.log_partition_pl(lbpa.unpack_v(qp.v))
+    print 'Pseudo-likelihood MAP   = ', lbpa.log_partition_map(lbpa.unpack_v(qp.v))
+    print 'Unary                   = ', lbpa.log_partition_unary(lbpa.unpack_v(qp.v))
 
 
 def test_constr_speed():
@@ -223,8 +232,8 @@ def test_lbp():
 
 
 if __name__ == '__main__':
-    # test_bf()
-    test_smiley()
+    test_bf()
+    # test_smiley()
     # test_constr_speed()
     # test_lbp()
 
