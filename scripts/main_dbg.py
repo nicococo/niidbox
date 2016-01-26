@@ -61,7 +61,7 @@ def test_smiley():
     width = data['width']
     height = data['height']
     exms = x.shape[0]
-    linds = np.random.permutation(exms)[:np.int(0.3*exms)]
+    linds = np.random.permutation(exms)[:np.int(0.1*exms)]
 
     A = co.spmatrix(0, [], [], (exms, exms), tc='d')
     for k in range(1, 3):
@@ -83,15 +83,15 @@ def test_smiley():
     u = np.random.randn(qp.get_num_feats()*qp.S)
     v = np.random.randn(qp.get_num_compressed_dims())
     #np.savez('../../Projects/hotstart.npz', start=(u, v, linds))
-    #(u, v, linds) = np.load('../../Projects/hotstart.npz')['start']
+    (u, v, linds) = np.load('../../Projects/hotstart.npz')['start']
 
     # qp.fit(use_grads=False, hotstart=(u, v), auto_adjust=False)
     # qp.fit(use_grads=False, hotstart=None, auto_adjust=True)
 
     lbpa = TCRFR_lbpa(x.T.copy(), y[linds].copy(), linds,  states=2, A=A,
-                      reg_gamma=10000., reg_theta=0.995, trans_sym=[1], trans_regs=[[10., 2.]])
+                      reg_gamma=10000., reg_theta=0.49995, trans_sym=[1], trans_regs=[[20., 4.]])
     lbpa.verbosity_level = 3
-    lbpa.set_log_partition(lbpa.LOGZ_PL_MAP)
+    lbpa.set_log_partition(lbpa.LOGZ_PL_SUM)
     lbpa.fit(use_grads=False, hotstart=(u, v), auto_adjust=False)
     #lbpa.fit(use_grads=False, hotstart=None, auto_adjust=True)
     #lbpa.map_inference(qp.u, lbpa.unpack_v(qp.v))
@@ -232,8 +232,8 @@ def test_lbp():
 
 
 if __name__ == '__main__':
-    test_bf()
-    # test_smiley()
+    # test_bf()
+    test_smiley()
     # test_constr_speed()
     # test_lbp()
 

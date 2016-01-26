@@ -199,6 +199,11 @@ class AbstractTCRFR(object):
         self.u = np.zeros(self.get_num_feats()*self.S)
         self.v = np.zeros(self.get_num_compressed_dims())
 
+        # having more than 1 transition type is untested and therefore unsupported yet
+        if self.trans_n > 1:
+            print('WARNING: having more than 1 transition matrix type is untested and therefore unsupported yet!')
+        # assert self.trans_n == 1
+
         # print some stats
         if self.verbosity_level >= 1:
             self.print_stats()
@@ -318,6 +323,7 @@ class AbstractTCRFR(object):
 
     def fit(self, max_iter=50, hotstart=None, use_grads=True, auto_adjust=True):
         if auto_adjust:
+            print('Setup auto-adjust of gamma.')
             self.reg_gamma = 1.0
             self.init_Q()
         u, v = self.get_hotstart()
@@ -374,8 +380,8 @@ class AbstractTCRFR(object):
                 best_sol = [cnt_iter, obj, u, v, self.latent]
                 print('*')
 
-            # if cnt_iter > 3 and rel < 1e-3:
-            #     is_converged = True
+            if cnt_iter > 8 and rel < 1e-3:
+                 is_converged = True
 
             if cnt_iter > 2 and self.get_latent_diff()<0.1:
                 is_converged = True

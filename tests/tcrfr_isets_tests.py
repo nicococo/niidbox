@@ -109,27 +109,31 @@ def test_transition_conversion():
 @with_setup(setup=partial(setup, exms=16, train=0, deps=2, add_intercept=True))
 def test_cluster_setting():
     print "Test Cluster setting."
-    # setup cluster 0 & 2 = unlabeled, 1 = labeled (2 latent states)
-    cluster = [np.arange(0, 6), np.arange(6, 10), np.arange(10, 16)]
-    A[5, 6] = 0
-    A[6, 5] = 0
+    # setup cluster 0 = labeled, 1 = unlabeled (2 latent states)
+    cluster = [np.arange(0, 10), np.arange(10, 16)]
     A[9, 10] = 0
     A[10, 9] = 0
-    assert any(z[6:10]==1) and any(z[6:10]==0)
-    labeled_inds = np.arange(6, 10)
+    print z
+    assert any(z[:6]==0) and any(z[6:16]==1)
+    labeled_inds = np.arange(0, 10)
 
     qp = TCRFR_QP(x.T, y[labeled_inds], labeled_inds, states=2, A=A, \
-                           reg_theta=0.9, reg_gamma=1., trans_sym=[1])
+                           reg_theta=0.6, reg_gamma=1., trans_sym=[1])
     qp.fit(use_grads=False)
 
     lbpa_iset = TCRFR_lbpa_iset(cluster, x.T, y[labeled_inds], labeled_inds, states=2, A=A, \
-                           reg_theta=0.9, reg_gamma=1., trans_sym=[1])
+                           reg_theta=0.6, reg_gamma=1., trans_sym=[1])
     lbpa_iset.fit(use_grads=False)
 
+    print '------------'
+    inds = np.zeros(y.size, dtype=np.int8)
+    inds[labeled_inds] = 1
+    print inds
+    print '------------'
     print lbpa_iset.latent
     print qp.latent
     print z
-
     print '------------'
     print lbpa_iset.log_partition_pl(qp.unpack_v(qp.v))
     print qp.log_partition_pl(qp.unpack_v(qp.v))
+    print '------------'

@@ -22,7 +22,7 @@ class TCRFR_lbpa_iset(TCRFR_lbpa):
     MAP_ISET_INDEP = 2  # full map inference only on cluster with multiple labels
                         # otherwise, map inference assuming independent examples within type 0,1 clusters
 
-    map_iset_inference_scheme = MAP_ISET_MEAN
+    map_iset_inference_scheme = MAP_ISET_INDEP
 
     num_isets = -1          # number of clusters
 
@@ -132,11 +132,10 @@ class TCRFR_lbpa_iset(TCRFR_lbpa):
         if self.map_iset_inference_scheme == self.MAP_ISET_INDEP:
             map_objs = np.zeros((self.S, self.samples))
             for s in range(self.S):
-                map_objs[s, :] = (1.0 - self.reg_theta)*v[:, s].dot(self.data)
-                f_squares = self.labels - u[:, s].dot(self.data[:, self.label_inds])
+                map_objs[s, :] = (1.0 - self.reg_theta)*iv[:, s].dot(self.data)
+                f_squares = self.labels - iu[:, s].dot(self.data[:, self.label_inds])
                 map_objs[s, self.label_inds] -= self.reg_theta/2. * f_squares*f_squares
                 self.latent = np.argmax(map_objs, axis=0)
-
 
         for i in range(self.num_isets):
             if self.iset_type[i] == 2:
