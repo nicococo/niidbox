@@ -81,10 +81,10 @@ class TCRFR_lbpa_iset(TCRFR_lbpa):
         self.iset_edges = np.zeros(len(self.isets), dtype=np.float)
         for e in self.E:
             self.iset_edges[self.data_iset[e[0]]] += 2
-            if self.data_iset[e[0]]!=self.data_iset[e[1]]:
+            if self.data_iset[e[0]] != self.data_iset[e[1]]:
                 cnt_wrong_edges += 1
-
-        print cnt_wrong_edges
+        print('Number of edges across clusters (is assumed to be 0): {0}'.format(cnt_wrong_edges))
+        assert cnt_wrong_edges == 0
 
     def print_stats(self):
         AbstractTCRFR.print_stats(self)

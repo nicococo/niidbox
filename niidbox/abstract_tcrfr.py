@@ -147,7 +147,7 @@ class AbstractTCRFR(object):
         num_edges = np.int(num_entries / 2)
         assert 2*num_edges == num_entries  # is assumed to be twice the number of edges!
         self.E = np.zeros((num_edges, 3), dtype=np.int64)
-        print num_entries, num_edges
+        print('Number of non-zero entries in the transition matrix is {0}, number of edges is {1}.'.format(num_entries, num_edges))
         cnt = 0
         for idx in range(AV.size):
             s = AI[idx]
@@ -169,7 +169,7 @@ class AbstractTCRFR(object):
 
                 N_idx[s] += 1
                 N_idx[n] += 1
-        print time.time()-t
+        print('Time for constructing the neighborhood matrix: {0}'.format(time.time()-t))
         # print self.E
 
         # regularization constants
