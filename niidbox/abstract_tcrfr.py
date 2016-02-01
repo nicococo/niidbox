@@ -375,7 +375,11 @@ class AbstractTCRFR(object):
             if self.verbosity_level >= 1:
                 print('Iter={0} regr={1:4.2f} crf={2:4.2f}; objective={3:4.2f} rel={4:2.4f} lats={5}'.format(
                     cnt_iter, obj_regression, obj_crf, obj, rel, np.unique(self.latent).size))
-                print('  norm_v={0}'.format(np.linalg.norm(v)))
+                print(' -norm_v={0}'.format(np.linalg.norm(v)))
+                # number of samples in a partiular latent states
+                for c in range(self.S):
+                    foo = np.sum(self.latent == c)
+                    print(' -#samples in state {0} = {1}'.format(c, foo))
 
             if best_sol[1] >= obj:
                 best_sol = [cnt_iter, obj, u, v, self.latent]
