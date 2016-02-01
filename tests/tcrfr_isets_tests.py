@@ -102,7 +102,7 @@ def test_transition_conversion():
                     e1 = i
                 assert e2 in qp.N[i, :neighbors[i]]
                 ind = np.where(qp.N[i, :neighbors[i]] == e2)[0][0]
-                print qp.N_inv[i, ind]
+                # print qp.N_inv[i, ind]
                 assert qp.N[e2, qp.N_inv[i, ind]] == i
 
 
@@ -137,3 +137,31 @@ def test_cluster_setting():
     print lbpa_iset.log_partition_pl(qp.unpack_v(qp.v))
     print qp.log_partition_pl(qp.unpack_v(qp.v))
     print '------------'
+
+
+@with_setup(setup=partial(setup, exms=5000, train=0, deps=2, add_intercept=True))
+def test_cluster_large_setting():
+    print "Test Cluster setting."
+    # setup cluster 0 = labeled, 1 = unlabeled (2 latent states)
+    cluster = [np.arange(0, 2501), np.arange(2501, 5000)]
+    A[2500, 2501] = 0
+    A[2501, 2500] = 0
+    labeled_inds = np.random.permutation(y.size)
+    labeled_inds = labeled_inds[:1500]
+
+    qp = TCRFR_QP(x.T, y[labeled_inds], labeled_inds, states=2, A=A, \
+                           reg_theta=0.9, reg_gamma=1., trans_sym=[1])
+    qp.fit(use_grads=False)
+
+    lbpa_iset = TCRFR_lbpa_iset(cluster, x.T, y[labeled_inds], labeled_inds, states=2, A=A, \
+                           reg_theta=0.9, reg_gamma=1., trans_sym=[1])
+    lbpa_iset.fit(use_grads=False)
+
+    print '------------'
+    print np.sum(np.abs(lbpa_iset.latent-z))
+    print np.sum(np.abs((1-lbpa_iset.latent)-z))
+    print '------------'
+    print np.sum(np.abs(qp.latent-z))
+    print np.sum(np.abs((1-qp.latent)-z))
+    print '------------'
+

@@ -29,6 +29,7 @@ class AbstractTCRFR(object):
     LOGZ_PL_SUM = 2     # use pseudolikelihood (PL) with summation over neighbors
     LOGZ_UNARY  = 3     # only consider unary terms
     LOGZ_CONST  = 4     # do not use logZ
+    LOGZ_CUSTOM = 5     # custom log partition function
 
     data = None             # (either matrix or list) niidbox-data
     labels = None           # (list or matrix or array) labels
@@ -496,14 +497,20 @@ class AbstractTCRFR(object):
     def map_inference(self, u, v):
         raise NotImplementedError
 
-    def set_log_partition(self, type):
-        self.log_partition = self.log_partition_pl  # default
+    def set_log_partition(self, type, custom_fct=None):
+        print('Set log-partition function to type: {0}.'.format(type))
         if type == self.LOGZ_PL_MAP:
             self.log_partition = self.log_partition_map
+        elif type == self.LOGZ_PL_SUM:
+            self.log_partition = self.log_partition_pl
         elif type == self.LOGZ_UNARY:
             self.log_partition = self.log_partition_unary
         elif type == self.LOGZ_CONST:
             self.log_partition = self.log_partition_const
+        elif type == self.LOGZ_CUSTOM:
+            self.log_partition = custom_fct
+        else:
+            raise Warning('Unkown log-partition function type!')
 
     def log_partition(self, v):
         pass

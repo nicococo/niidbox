@@ -19,10 +19,12 @@ class TCRFR_lbpa_iset(TCRFR_lbpa):
     MAP_ISET_FULL = 0   # map inference on the full set of variables (fallback)
     MAP_ISET_MEAN = 1   # full map inference only on cluster with multiple labels
                         # otherwise, map inference only on the mean of unlabeled clusters
-    MAP_ISET_INDEP = 2  # full map inference only on cluster with multiple labels
+    MAP_ISET_INDEP1 = 2 # full map inference only on cluster with multiple labels
                         # otherwise, map inference assuming independent examples within type 0,1 clusters
+    MAP_ISET_INDEP2 = 3 # full map inference on cluster with multiple AND single labels
+                        # otherwise, map inference assuming independent examples within type 0 clusters
 
-    map_iset_inference_scheme = MAP_ISET_INDEP
+    map_iset_inference_scheme = MAP_ISET_INDEP2
 
     num_isets = -1          # number of clusters
 
@@ -47,6 +49,9 @@ class TCRFR_lbpa_iset(TCRFR_lbpa):
         self.num_isets = len(cluster)
         AbstractTCRFR.__init__(self, data, labels, label_inds, states, A, \
                  reg_theta, reg_lambda, reg_gamma, trans_regs, trans_sym, verbosity_level=verbosity_level)
+
+        # add the iset log partition function
+        self.set_log_partition(self.LOGZ_CUSTOM, custom_fct=self.log_partition_pl_mean_iset)
 
         # ASSUMPTION I: cluster do NOT share any edges (completely independent of each other)
         # ASSUMPTION II: niidbox-data is clustered, hence, input instances within each cluster look similar
@@ -91,6 +96,7 @@ class TCRFR_lbpa_iset(TCRFR_lbpa):
         # plot some statistics
         stats = np.zeros(6, dtype=np.int)
         stats[0] = 1e10
+        stats[4] = 1e10
         for cset in self.isets:
             stats[0] = min(stats[0], cset.size)
             stats[1] = max(stats[1], cset.size)
@@ -101,9 +107,21 @@ class TCRFR_lbpa_iset(TCRFR_lbpa):
                 stats[4] = min(stats[4], foo.size)
                 stats[5] += 1
         means = stats[2]/len(self.isets)
+        print('Cluster properties')
+        print('===============================')
         print('There are {0} disjunct clusters.'.format(len(self.isets)))
-        print('Stats samples:\n  min/cluster={0}, max/cluster={1}, mean/cluster={2:1.2f}'.format(stats[0], stats[1], means))
-        print('Stats labels: \n  num-lbld-cluster={0}, max-num/cluster={1}, min-num/cluster={2}'.format(stats[5], stats[3], stats[4]))
+        print('-------------------------------')
+        print('Stats samples (total={0}):'.format(self.samples))
+        print('- min #samples within cluster  : {0}'.format(stats[0]))
+        print('- max #samples within cluster  : {0}'.format(stats[1]))
+        print('- mean #samples within cluster : {0:1.2f}'.format(means))
+        print('-------------------------------')
+        print('Stats labels (total={0}):'.format(self.labels.size))
+        print('- #cluster with labeled examples : {0}'.format(stats[5]))
+        print('- max #labels within clusters    : {0}'.format(stats[3]))
+        print('- min #labels in cluster that have labels : {0}'.format(stats[4]))
+        print('-------------------------------')
+        print('- Map inference scheme : '.format(self.map_iset_inference_scheme))
         print('===============================')
 
     @profile
@@ -129,7 +147,8 @@ class TCRFR_lbpa_iset(TCRFR_lbpa):
             # to expand
             latent_means = np.argmax(map_objs, axis=0)
 
-        if self.map_iset_inference_scheme == self.MAP_ISET_INDEP:
+        if self.map_iset_inference_scheme == self.MAP_ISET_INDEP1 \
+            or self.map_iset_inference_scheme == self.MAP_ISET_INDEP2:
             map_objs = np.zeros((self.S, self.samples))
             for s in range(self.S):
                 map_objs[s, :] = (1.0 - self.reg_theta)*iv[:, s].dot(self.data)
@@ -138,7 +157,8 @@ class TCRFR_lbpa_iset(TCRFR_lbpa):
                 self.latent = np.argmax(map_objs, axis=0)
 
         for i in range(self.num_isets):
-            if self.iset_type[i] == 2:
+            if self.iset_type[i] == 2 or \
+                    (self.iset_type[i] == 1 and self.map_iset_inference_scheme == self.MAP_ISET_INDEP2):
                 # CASE 2: multiple lbld examples in this cluster
                 lats = _extern_map_partial_lbp(self.data, self.labels, self.label_inds, \
                               self.N, self.N_inv, self.N_weights, u, v, self.reg_theta, self.feats, \
@@ -152,7 +172,7 @@ class TCRFR_lbpa_iset(TCRFR_lbpa):
         return self.get_joint_feature_maps()
 
     @profile
-    def log_partition_pl(self, v):
+    def log_partition_pl_mean_iset(self, v):
         # self.N is a (Nodes x max_connection_count) Matrix containing the indices for each neighbor
         # of each node (indices are 0 for non-neighbors, therefore N_weights is need to multiply this
         # unvalid value with 0.
