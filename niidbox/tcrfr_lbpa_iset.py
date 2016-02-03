@@ -23,8 +23,11 @@ class TCRFR_lbpa_iset(TCRFR_lbpa):
                         # otherwise, map inference assuming independent examples within type 0,1 clusters
     MAP_ISET_INDEP2 = 3 # full map inference on cluster with multiple AND single labels
                         # otherwise, map inference assuming independent examples within type 0 clusters
+    MAP_ISET_MEAN_LBL = 4   # full map inference only on cluster with multiple labels
+                            # for unlabeled clusters, map inference only on the mean of unlabeled clusters,
+                            # for single label clusters, map inference based solely on the labeled example
 
-    map_iset_inference_scheme = MAP_ISET_INDEP2
+    map_iset_inference_scheme = MAP_ISET_MEAN_LBL
 
     num_isets = -1          # number of clusters
 
@@ -36,7 +39,7 @@ class TCRFR_lbpa_iset(TCRFR_lbpa):
     iset_vertices = None    # number of vertices in each cluster
 
     iset_type1 = None       # indices of clusters of type 1
-    iset_type1_lbl = None   # indices of the label of clusters of type 1
+    iset_type1_lbl = None   # indices of the label of clusters of type 1 (in label_inds)
 
     data_means = None       # the overall mean of the input instances for each cluster
     data_iset = None        # for each niidbox-data point its corresponding cluster
@@ -121,7 +124,7 @@ class TCRFR_lbpa_iset(TCRFR_lbpa):
         print('- max #labels within clusters    : {0}'.format(stats[3]))
         print('- min #labels in cluster that have labels : {0}'.format(stats[4]))
         print('-------------------------------')
-        print('- Map inference scheme : '.format(self.map_iset_inference_scheme))
+        print('- Map inference scheme : {0}'.format(self.map_iset_inference_scheme))
         print('===============================')
 
     @profile
@@ -138,6 +141,7 @@ class TCRFR_lbpa_iset(TCRFR_lbpa):
         iu = u.reshape((self.feats, self.S), order='F')
         iv = v[self.trans_d_full*self.trans_n:].reshape((self.feats, self.S), order='F')
 
+        # infer latent states for the mean of each cluster and then apply it for the whole cluster
         if self.map_iset_inference_scheme == self.MAP_ISET_MEAN:
             map_objs = np.zeros((self.S, len(self.isets)))
             for s in range(self.S):
@@ -146,7 +150,23 @@ class TCRFR_lbpa_iset(TCRFR_lbpa):
                 map_objs[s, self.iset_type1] -= self.reg_theta/2. * f_squares*f_squares
             # to expand
             latent_means = np.argmax(map_objs, axis=0)
+            self.latent = latent_means[self.data_iset]
 
+        # infer latent states based on the means, except for single label cluster, then replace the mean
+        # by the single label
+        if self.map_iset_inference_scheme == self.MAP_ISET_MEAN_LBL:
+            type1_inds = self.label_inds[self.iset_type1_lbl]
+            map_objs = np.zeros((self.S, len(self.isets)))
+            for s in range(self.S):
+                map_objs[s, :] = (1.0 - self.reg_theta)*iv[:, s].dot(self.data_means)
+                map_objs[s, self.iset_type1] = (1.0 - self.reg_theta)*iv[:, s].dot(self.data[:, type1_inds])
+                f_squares = self.labels[self.iset_type1_lbl] - iu[:, s].dot(self.data[:, type1_inds])
+                map_objs[s, self.iset_type1] -= self.reg_theta/2. * f_squares*f_squares
+            # to expand
+            latent_means = np.argmax(map_objs, axis=0)
+            self.latent = latent_means[self.data_iset]
+
+        # infer latent states based on inputs only (no connnections considered here)
         if self.map_iset_inference_scheme == self.MAP_ISET_INDEP1 \
             or self.map_iset_inference_scheme == self.MAP_ISET_INDEP2:
             map_objs = np.zeros((self.S, self.samples))
@@ -156,6 +176,7 @@ class TCRFR_lbpa_iset(TCRFR_lbpa):
                 map_objs[s, self.label_inds] -= self.reg_theta/2. * f_squares*f_squares
                 self.latent = np.argmax(map_objs, axis=0)
 
+        # do full belief propagation sweep for some cluster
         for i in range(self.num_isets):
             if self.iset_type[i] == 2 or \
                     (self.iset_type[i] == 1 and self.map_iset_inference_scheme == self.MAP_ISET_INDEP2):
@@ -165,9 +186,6 @@ class TCRFR_lbpa_iset(TCRFR_lbpa):
                               self.isets[i], self.S, self.trans_d_full, self.trans_n, \
                               self.trans_mtx2vec_full, False, self.verbosity_level)
                 self.latent[self.isets[i]] = lats[self.isets[i]]
-            elif self.iset_type[i] == 0 or self.iset_type[i] == 1:
-                if self.map_iset_inference_scheme == self.MAP_ISET_MEAN:
-                    self.latent[self.isets[i]] = latent_means[i]
 
         return self.get_joint_feature_maps()
 
