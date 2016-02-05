@@ -12,8 +12,8 @@ class TCRFR_lbpa_iset(TCRFR_lbpa):
     """ Pairwise Conditional Random Field for transductive regression.
 
         The graphical model is assumed to split into multiple disjunct sets
-        without any connection. This will speedup calculations for large datasets
-        tremendously.
+        without any connection. This will speedup calculations for large datasets tremendously.
+        Various map inference schemes are provided.
     """
 
     MAP_ISET_FULL = 0   # map inference on the full set of variables (fallback)
@@ -176,12 +176,15 @@ class TCRFR_lbpa_iset(TCRFR_lbpa):
                 map_objs[s, self.label_inds] -= self.reg_theta/2. * f_squares*f_squares
                 self.latent = np.argmax(map_objs, axis=0)
 
+        # fix the latent states
+        self.latent[self.latent_fixed_inds] = self.latent_fixed[self.latent_fixed_inds]
+
         # do full belief propagation sweep for some cluster
         for i in range(self.num_isets):
             if self.iset_type[i] == 2 or \
                     (self.iset_type[i] == 1 and self.map_iset_inference_scheme == self.MAP_ISET_INDEP2):
                 # CASE 2: multiple lbld examples in this cluster
-                lats = _extern_map_partial_lbp(self.data, self.labels, self.label_inds, \
+                lats = _extern_map_partial_lbp(self.data, self.latent_fixed, self.labels, self.label_inds, \
                               self.N, self.N_inv, self.N_weights, u, v, self.reg_theta, self.feats, \
                               self.isets[i], self.S, self.trans_d_full, self.trans_n, \
                               self.trans_mtx2vec_full, False, self.verbosity_level)
@@ -219,9 +222,10 @@ class TCRFR_lbpa_iset(TCRFR_lbpa):
 
 
 @autojit(nopython=True)
-def _extern_map_partial_lbp(data, labels, label_inds, N, N_inv, N_weights, \
+def _extern_map_partial_lbp(data, latent_fixed, labels, label_inds, N, N_inv, N_weights, \
              u, v, theta, feats, sample_inds, states, trans_d_full, trans_n, trans_mtx2vec_full, fix_lbl_map, verbosity):
 
+    MIN_INF = 1e-10
     samples = N.shape[0]
 
     unary = np.zeros((states, samples))
@@ -273,12 +277,19 @@ def _extern_map_partial_lbp(data, labels, label_inds, N, N_inv, N_weights, \
                         # foo_full[t] = unary[t, i] + (1.0 - theta)*(v[trans_mtx2vec_full[s, t]]+sum_msg)  # ERR! 1: msgs include transition term already
                         # foo_full[t] = unary[t, i] + (1.0 - theta)*sum_msg  # ERR! 2: msgs are (1-theta)-normalized already
                         foo_full[t] = unary[t, i] + sum_msg
+
                     msgs[i, j, s] = np.max(foo)
                     psis[i, j, s] = np.argmax(foo_full)
+                    if latent_fixed[i] >= 0:
+                        msgs[i, j, s] = foo[latent_fixed[i]]
+                        psis[i, j, s] = latent_fixed[i]
+
                     if msgs[i, j, s] > max_msg:
                         max_msg = msgs[i, j, s]
 
-                # msgs[i, j, :] -= np.max((msgs[i, j, :]))  # normalization of the new message from i->j
+                if latent_fixed[i] >= 0:
+                    msgs[i, j, latent_fixed[i]] = max_msg*100.
+
                 for m in range(states):
                     msgs[i, j, m] -= max_msg   # normalization of the new message from i->j
                 change += np.sum(np.abs(msgs[i, j, :]-bak))
@@ -300,7 +311,10 @@ def _extern_map_partial_lbp(data, labels, label_inds, N, N_inv, N_weights, \
 
     # backtracking step
     idxs = np.zeros(sample_inds.size, dtype=np.int32)
-    latent[i] = np.argmax(foo)
+    if latent_fixed[i] >= 0:
+        latent[i] = latent_fixed[i]
+    else:
+        latent[i] = np.argmax(foo)
     idxs[0] = i
     cnt = 1
     for s in range(sample_inds.size):
@@ -308,6 +322,8 @@ def _extern_map_partial_lbp(data, labels, label_inds, N, N_inv, N_weights, \
         for j in range(np.sum(N_weights[i, :])):
             if latent[N[i, j]] < 0:
                 latent[N[i, j]] = psis[N[i, j], N_inv[i, j], latent[i]]
+                if latent_fixed[N[i, j]] >= 0:
+                    latent[N[i, j]] = latent_fixed[N[i, j]]
                 idxs[cnt] = N[i, j]
                 cnt += 1
     return latent

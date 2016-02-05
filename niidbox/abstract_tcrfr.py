@@ -38,7 +38,8 @@ class AbstractTCRFR(object):
 
     latent_prev = None   # (#V in {0,...,S-1}) previous latent states
     latent = None        # (#V in {0,...,S-1}) latent states (1-to-1 correspondence to niidbox-data/labels object)
-    latent_fixed = None  # (#V int) '1':corresponding state in 'latent' is fixed
+    latent_fixed = None  # (#V int) fixed latent state for each sample, '-1' indicates 'not fixed' and is the default
+    latent_fixed_inds = None  # (<#V int) indices of samples with fixed latent state
 
     samples = -1  # (scalar) number of training niidbox-data samples
     feats = -1    # (scalar) number of features != get_num_dims() !!!
@@ -100,7 +101,7 @@ class AbstractTCRFR(object):
         self.S = states
         self.latent = np.zeros(verts, dtype=np.int8)
         self.latent_prev = np.zeros(verts, dtype=np.int8)
-        self.latent_fixed = np.zeros(verts, dtype=np.int8)
+        self.latent_fixed = -np.ones(verts, dtype=np.int8)
 
         # some transition inits
         self.trans_d_sym = np.round(self.S * (self.S - 1.) / 2. + self.S)
@@ -257,6 +258,11 @@ class AbstractTCRFR(object):
             cnt += self.trans_d_full
         self.Q = np.diag(self.reg_gamma * foo)
         # print self.Q
+
+    def set_fixed_latent_states(self, fixed):
+        assert(fixed.size == self.samples)
+        self.latent_fixed = fixed
+        self.latent_fixed_inds = np.where(fixed >= 0)[0]
 
     def get_trans_converters(self):
         # P: states x states -> states*states
