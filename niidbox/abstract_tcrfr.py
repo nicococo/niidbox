@@ -102,6 +102,7 @@ class AbstractTCRFR(object):
         self.latent = np.zeros(verts, dtype=np.int8)
         self.latent_prev = np.zeros(verts, dtype=np.int8)
         self.latent_fixed = -np.ones(verts, dtype=np.int8)
+        self.latent_fixed_inds = []
 
         # some transition inits
         self.trans_d_sym = np.round(self.S * (self.S - 1.) / 2. + self.S)

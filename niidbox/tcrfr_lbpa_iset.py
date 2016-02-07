@@ -280,15 +280,18 @@ def _extern_map_partial_lbp(data, latent_fixed, labels, label_inds, N, N_inv, N_
 
                     msgs[i, j, s] = np.max(foo)
                     psis[i, j, s] = np.argmax(foo_full)
-                    if latent_fixed[i] >= 0:
-                        msgs[i, j, s] = foo[latent_fixed[i]]
-                        psis[i, j, s] = latent_fixed[i]
+                    # if latent_fixed[i] >= 0:
+                    #     msgs[i, j, s] = foo[latent_fixed[i]]
+                    #     psis[i, j, s] = latent_fixed[i]
 
                     if msgs[i, j, s] > max_msg:
                         max_msg = msgs[i, j, s]
 
                 if latent_fixed[i] >= 0:
-                    msgs[i, j, latent_fixed[i]] = max_msg*100.
+                    max_msg += 10000.
+                    msgs[i, j, latent_fixed[i]] = max_msg
+                    psis[i, j, latent_fixed[i]] = latent_fixed[i]
+                    # msgs[i, j, latent_fixed[i]] = 1e20
 
                 for m in range(states):
                     msgs[i, j, m] -= max_msg   # normalization of the new message from i->j
@@ -322,8 +325,8 @@ def _extern_map_partial_lbp(data, latent_fixed, labels, label_inds, N, N_inv, N_
         for j in range(np.sum(N_weights[i, :])):
             if latent[N[i, j]] < 0:
                 latent[N[i, j]] = psis[N[i, j], N_inv[i, j], latent[i]]
-                if latent_fixed[N[i, j]] >= 0:
-                    latent[N[i, j]] = latent_fixed[N[i, j]]
+                # if latent_fixed[N[i, j]] >= 0:
+                #     latent[N[i, j]] = latent_fixed[N[i, j]]
                 idxs[cnt] = N[i, j]
                 cnt += 1
     return latent

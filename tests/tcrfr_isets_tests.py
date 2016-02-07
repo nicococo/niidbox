@@ -165,20 +165,20 @@ def test_cluster_large_setting():
     print np.sum(np.abs((1-qp.latent)-z))
     print '------------'
 
-@with_setup(setup=partial(setup, exms=16, train=0, deps=2, add_intercept=True))
+@with_setup(setup=partial(setup, exms=32, train=0, deps=2, add_intercept=True))
 def test_cluster_fixed_latent_states():
     print "Test Cluster setting."
     # setup cluster 0 = labeled, 1 = unlabeled (2 latent states)
-    cluster = [np.arange(0, 16)]
-    labeled_inds = np.random.permutation(16)
+    cluster = [np.arange(0, 32)]
+    labeled_inds = np.random.permutation(32)
     labeled_inds = labeled_inds[:8]
 
     qp = TCRFR_QP(x.T, y[labeled_inds], labeled_inds, states=2, A=A, \
-                           reg_theta=0.6, reg_gamma=1., trans_sym=[1])
+                           reg_theta=0.8, reg_gamma=1., trans_sym=[1])
     qp.fit(use_grads=False)
 
     lbpa_iset = TCRFR_lbpa_iset(cluster, x.T, y[labeled_inds], labeled_inds, states=2, A=A, \
-                           reg_theta=0.6, reg_gamma=1., trans_sym=[1])
+                           reg_theta=0.8, reg_gamma=1., trans_sym=[1], verbosity_level=3)
     fixed = -np.ones(y.size, dtype=np.int)
     fixed[4:10] = z[4:10]
     lbpa_iset.set_fixed_latent_states(fixed)
@@ -195,7 +195,7 @@ def test_cluster_fixed_latent_states():
     print 'Lbpa : ', lbpa_iset.latent
     print 'Qp   : ', qp.latent
     print '------------'
-    print lbpa_iset.log_partition_pl(qp.unpack_v(qp.v))
+    print lbpa_iset.log_partition(qp.unpack_v(qp.v))
     print qp.log_partition_pl(qp.unpack_v(qp.v))
     print '------------'
 
