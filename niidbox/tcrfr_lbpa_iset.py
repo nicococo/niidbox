@@ -184,7 +184,7 @@ class TCRFR_lbpa_iset(TCRFR_lbpa):
             if self.iset_type[i] == 2 or \
                     (self.iset_type[i] == 1 and self.map_iset_inference_scheme == self.MAP_ISET_INDEP2):
                 # CASE 2: multiple lbld examples in this cluster
-                lats = _extern_map_partial_lbp(self.data, self.latent_fixed, self.labels, self.label_inds, \
+                lats = _extern_map_partial_lbp(self.data, self.latent_fixed, self.latent_fixed_threshold, self.labels, self.label_inds, \
                               self.N, self.N_inv, self.N_weights, u, v, self.reg_theta, self.feats, \
                               self.isets[i], self.S, self.trans_d_full, self.trans_n, \
                               self.trans_mtx2vec_full, False, self.verbosity_level)
@@ -222,10 +222,10 @@ class TCRFR_lbpa_iset(TCRFR_lbpa):
 
 
 @autojit(nopython=True)
-def _extern_map_partial_lbp(data, latent_fixed, labels, label_inds, N, N_inv, N_weights, \
+def _extern_map_partial_lbp(data, latent_fixed, latent_fixed_threshold, labels, label_inds, N, N_inv, N_weights, \
              u, v, theta, feats, sample_inds, states, trans_d_full, trans_n, trans_mtx2vec_full, fix_lbl_map, verbosity):
 
-    MIN_INF = 1e-10
+    FIXED_ADD_VALUE = latent_fixed_threshold
     samples = N.shape[0]
 
     unary = np.zeros((states, samples))
@@ -288,7 +288,7 @@ def _extern_map_partial_lbp(data, latent_fixed, labels, label_inds, N, N_inv, N_
                         max_msg = msgs[i, j, s]
 
                 if latent_fixed[i] >= 0:
-                    max_msg += 10000.
+                    max_msg += FIXED_ADD_VALUE
                     msgs[i, j, latent_fixed[i]] = max_msg
                     psis[i, j, latent_fixed[i]] = latent_fixed[i]
                     # msgs[i, j, latent_fixed[i]] = 1e20

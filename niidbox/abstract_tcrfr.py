@@ -40,6 +40,7 @@ class AbstractTCRFR(object):
     latent = None        # (#V in {0,...,S-1}) latent states (1-to-1 correspondence to niidbox-data/labels object)
     latent_fixed = None  # (#V int) fixed latent state for each sample, '-1' indicates 'not fixed' and is the default
     latent_fixed_inds = None  # (<#V int) indices of samples with fixed latent state
+    latent_fixed_threshold = 10000.  # TODO refactor, this is value that is added in the lbp (for isets) for fixed latent states
 
     samples = -1  # (scalar) number of training niidbox-data samples
     feats = -1    # (scalar) number of features != get_num_dims() !!!
