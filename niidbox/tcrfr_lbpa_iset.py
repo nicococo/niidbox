@@ -16,40 +16,35 @@ class TCRFR_lbpa_iset(TCRFR_lbpa):
         Various map inference schemes are provided.
     """
 
-    MAP_ISET_FULL = 0   # map inference on the full set of variables (fallback)
-    MAP_ISET_MEAN = 1   # full map inference only on cluster with multiple labels
-                        # otherwise, map inference only on the mean of unlabeled clusters
-    MAP_ISET_INDEP1 = 2 # full map inference only on cluster with multiple labels
-                        # otherwise, map inference assuming independent examples within type 0,1 clusters
-    MAP_ISET_INDEP2 = 3 # full map inference on cluster with multiple AND single labels
-                        # otherwise, map inference assuming independent examples within type 0 clusters
-    MAP_ISET_MEAN_LBL = 4   # full map inference only on cluster with multiple labels
-                            # for unlabeled clusters, map inference only on the mean of unlabeled clusters,
-                            # for single label clusters, map inference based solely on the labeled example
-
-    map_iset_inference_scheme = MAP_ISET_MEAN_LBL
+    # Each iset (cluster) needs a corresponding indicator for which type of inference it should use.
+    MAP_ISET_FULL  = 0  # full inference
+    MAP_ISET_NONE  = 1  # no inference at all (IMPORTANT! For each sample in this iset/cluster
+                        # a corresponding entry in latent_fixed is assumed!)
+    MAP_ISET_MEAN  = 2  # only use the mean (no labels, no fixed latent states)
+    MAP_ISET_LBL   = 3  # infer only for the single label in this iset and set latent state for the whole iset
+    MAP_ISET_INDEP = 4  # independent (no connections) inference for each example in the iset
 
     num_isets = -1          # number of clusters
 
     isets = None            # list of np.array indices of cluster-memberships
-    iset_type = None        # 3 types (per cluster): 0-no lbld exms, 1-one lbld exm, 2-multiple lbld exms
-    iset_lbl_inds = None    # for each cluster a (np.array-)list of labeled examples
+    isets_map_type = None   # map inference type for each iset
+
+    iset_lbl_label_inds = None     # for each cluster a (np.array-)list: the indices in label_inds for this cluster
+    iset_lbl_sample_inds = None    # for each cluster a (np.array-)list: the sample-indices of the labeled examples in this cluster
 
     iset_edges = None       # number of edges in each cluster
     iset_vertices = None    # number of vertices in each cluster
 
-    iset_type1 = None       # indices of clusters of type 1
-    iset_type1_lbl = None   # indices of the label of clusters of type 1 (in label_inds)
-
     data_means = None       # the overall mean of the input instances for each cluster
     data_iset = None        # for each niidbox-data point its corresponding cluster
 
-    def __init__(self, cluster, data, labels, label_inds, states, A,
+    def __init__(self, isets, isets_map_type, data, labels, label_inds, states, A,
                  reg_theta=0.5, reg_lambda=0.001, reg_gamma=1.0, trans_regs=[[1.0, 1.0]],
                  trans_sym=[1], lbl_weight=1.0, verbosity_level=1):
 
-        self.isets = cluster
-        self.num_isets = len(cluster)
+        self.isets = isets
+        self.num_isets = len(isets)
+        self.isets_map_type = isets_map_type
         AbstractTCRFR.__init__(self, data, labels, label_inds, states, A, \
                  reg_theta, reg_lambda, reg_gamma, trans_regs, trans_sym, verbosity_level=verbosity_level)
 
@@ -59,32 +54,30 @@ class TCRFR_lbpa_iset(TCRFR_lbpa):
         # ASSUMPTION I: cluster do NOT share any edges (completely independent of each other)
         # ASSUMPTION II: niidbox-data is clustered, hence, input instances within each cluster look similar
         # calculate the means of the clusters
-        type1_inds = []
-        type1_lbl_inds = []
-        self.iset_lbl_inds = []
-        self.iset_type = np.zeros(self.num_isets, dtype=np.int8)
+        self.isets_map_type = np.zeros(self.num_isets, dtype=np.int8)
         self.iset_vertices = np.zeros(self.num_isets, dtype=np.float)
         self.data_means = np.zeros( (self.feats, self.num_isets), dtype=np.float64)
         self.data_iset = np.zeros(self.samples, dtype=np.int32)
+        self.iset_lbl_label_inds = []
+        self.iset_lbl_sample_inds = []
 
         for i in range(self.num_isets):
             # calculate cluster means
             self.iset_vertices[i] = self.isets[i].size
             self.data_means[:, i] = np.mean(self.data[:, self.isets[i]], axis=1)
             inds = np.intersect1d(self.label_inds, self.isets[i])
-            self.iset_lbl_inds.append(inds)
+            self.iset_lbl_sample_inds.append(inds) # these are the sample inds for the labeled examples
+
+            # this works only if labels are sorted
+            # inds = np.searchsorted(self.label_inds, inds) # find the indices of 'inds' in 'label_inds'
+
+            self.iset_lbl_label_inds.append(inds)
             self.data_iset[self.isets[i]] = i
-            if inds.size == 1:
-                self.iset_type[i] = 1
-                type1_inds.append(i)
-                ind = np.where(self.label_inds == inds[0])[0]
-                type1_lbl_inds.append(ind[0])
-            elif inds.size > 1:
-                self.iset_type[i] = 2
+            # check for non-applicable inference
+            if inds.size > 1:
+                assert(not self.isets_map_type[i] == self.MAP_ISET_LBL)
 
-        self.iset_type1 = np.array(type1_inds, dtype=np.int)
-        self.iset_type1_lbl = np.array(type1_lbl_inds, dtype=np.int)
-
+        # Check for violations of ASSUMPTION 1
         cnt_wrong_edges = 0
         self.iset_edges = np.zeros(len(self.isets), dtype=np.float)
         for e in self.E:
@@ -110,7 +103,9 @@ class TCRFR_lbpa_iset(TCRFR_lbpa):
                 stats[4] = min(stats[4], foo.size)
                 stats[5] += 1
         means = stats[2]/len(self.isets)
-        print('Cluster properties')
+        print('Cluster/isets properties')
+        print('ASSUMPTION I: Cluster/isets do NOT share any edges (completely independent of each other).')
+        print('ASSUMPTION II: Data is clustered, hence, input instances within each cluster look similar.')
         print('===============================')
         print('There are {0} disjunct clusters.'.format(len(self.isets)))
         print('-------------------------------')
@@ -129,28 +124,11 @@ class TCRFR_lbpa_iset(TCRFR_lbpa):
 
     @profile
     def map_inference(self, u, v):
-        # if full inference is requested, then just
-        # let the base-class do the job.
-        if self.map_iset_inference_scheme == self.MAP_ISET_FULL:
-            return super(TCRFR_lbpa_iset, self).map_inference(u, v)
-
         if self.latent is not None:
             self.latent_prev = self.latent
 
-        # CASE 0 & 1: no or one lbld example in this cluster
         iu = u.reshape((self.feats, self.S), order='F')
         iv = v[self.trans_d_full*self.trans_n:].reshape((self.feats, self.S), order='F')
-
-        # infer latent states for the mean of each cluster and then apply it for the whole cluster
-        if self.map_iset_inference_scheme == self.MAP_ISET_MEAN:
-            map_objs = np.zeros((self.S, len(self.isets)))
-            for s in range(self.S):
-                map_objs[s, :] = (1.0 - self.reg_theta)*iv[:, s].dot(self.data_means)
-                f_squares = self.labels[self.iset_type1_lbl] - iu[:, s].dot(self.data_means[:, self.iset_type1])
-                map_objs[s, self.iset_type1] -= self.reg_theta/2. * f_squares*f_squares
-            # to expand
-            latent_means = np.argmax(map_objs, axis=0)
-            self.latent = latent_means[self.data_iset]
 
         # infer latent states based on the means, except for single label cluster, then replace the mean
         # by the single label
@@ -166,29 +144,41 @@ class TCRFR_lbpa_iset(TCRFR_lbpa):
             latent_means = np.argmax(map_objs, axis=0)
             self.latent = latent_means[self.data_iset]
 
-        # infer latent states based on inputs only (no connnections considered here)
-        if self.map_iset_inference_scheme == self.MAP_ISET_INDEP1 \
-            or self.map_iset_inference_scheme == self.MAP_ISET_INDEP2:
-            map_objs = np.zeros((self.S, self.samples))
-            for s in range(self.S):
-                map_objs[s, :] = (1.0 - self.reg_theta)*iv[:, s].dot(self.data)
-                f_squares = self.labels - iu[:, s].dot(self.data[:, self.label_inds])
-                map_objs[s, self.label_inds] -= self.reg_theta/2. * f_squares*f_squares
-                self.latent = np.argmax(map_objs, axis=0)
-
-        # fix the latent states
-        self.latent[self.latent_fixed_inds] = self.latent_fixed[self.latent_fixed_inds]
-
-        # do full belief propagation sweep for some cluster
+        # Main inference loop: go through each iset/cluster and apply the
+        # corresponding inference method
         for i in range(self.num_isets):
-            if self.iset_type[i] == 2 or \
-                    (self.iset_type[i] == 1 and self.map_iset_inference_scheme == self.MAP_ISET_INDEP2):
-                # CASE 2: multiple lbld examples in this cluster
+            # (A) do full belief propagation sweep for some cluster
+            if self.isets_map_type[i] == self.MAP_ISET_FULL:
                 lats = _extern_map_partial_lbp(self.data, self.latent_fixed, self.latent_fixed_threshold, self.labels, self.label_inds, \
                               self.N, self.N_inv, self.N_weights, u, v, self.reg_theta, self.feats, \
                               self.isets[i], self.S, self.trans_d_full, self.trans_n, \
-                              self.trans_mtx2vec_full, False, self.verbosity_level)
+                              self.trans_mtx2vec_full, self.verbosity_level)
                 self.latent[self.isets[i]] = lats[self.isets[i]]
+
+            # (B) infer states based only the mean of the iset
+            if self.isets_map_type[i] == self.MAP_ISET_MEAN:
+
+            # (B) infer states based only the mean of the iset
+            if self.isets_map_type[i] == self.MAP_ISET_MEAN:
+                map_obj = (1.0 - self.reg_theta)*iv[:, s].dot(self.data_means[:, i])
+                self.latent[self.isets[i]] = np.argmax(map_obj)
+
+            # (C) infer independent
+            if self.isets_map_type[i] == self.MAP_ISET_INDEP:
+                map_objs = np.zeros((self.S, self.isets[i].size))
+                for s in range(self.S):
+                    map_objs[s, :] = (1.0 - self.reg_theta)*iv[:, s].dot(self.data[:, self.isets[i]])
+                    f_squares = self.labels[self.iset_lbl_label_inds] - iu[:, s].dot(self.data[:, self.iset_lbl_sample_inds[i]])
+                    map_objs[s, ] -= self.reg_theta/2. * f_squares*f_squares
+                self.latent[self.isets[i]] = np.argmax(map_objs, axis=0)
+
+            # (D) single label inference
+            if self.isets_map_type[i] == self.MAP_ISET_LBL:
+
+        # fix the latent states if defined
+        if self.verbosity_level >= 2:
+            print('Now after inference, set the fixed latent states.')
+        self.latent[self.latent_fixed_inds] = self.latent_fixed[self.latent_fixed_inds]
 
         return self.get_joint_feature_maps()
 
@@ -223,7 +213,7 @@ class TCRFR_lbpa_iset(TCRFR_lbpa):
 
 @autojit(nopython=True)
 def _extern_map_partial_lbp(data, latent_fixed, latent_fixed_threshold, labels, label_inds, N, N_inv, N_weights, \
-             u, v, theta, feats, sample_inds, states, trans_d_full, trans_n, trans_mtx2vec_full, fix_lbl_map, verbosity):
+             u, v, theta, feats, sample_inds, states, trans_d_full, trans_n, trans_mtx2vec_full, verbosity):
 
     FIXED_ADD_VALUE = latent_fixed_threshold
     samples = N.shape[0]
