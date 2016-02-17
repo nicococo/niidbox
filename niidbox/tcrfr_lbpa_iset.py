@@ -5,7 +5,7 @@ from numba import autojit
 
 from abstract_tcrfr import AbstractTCRFR
 from tcrfr_lbpa import TCRFR_lbpa
-from utils import profile
+from utils import profile, argwhere_values_in_array
 
 
 class TCRFR_lbpa_iset(TCRFR_lbpa):
@@ -29,8 +29,8 @@ class TCRFR_lbpa_iset(TCRFR_lbpa):
     isets = None            # list of np.array indices of cluster-memberships
     isets_map_type = None   # map inference type for each iset
 
-    iset_lbl_label_inds = None     # for each cluster a (np.array-)list: the indices in label_inds for this cluster
-    iset_lbl_sample_inds = None    # for each cluster a (np.array-)list: the sample-indices of the labeled examples in this cluster
+    iset_lbl_label_inds = None  # for each cluster a (np.array-)list: the indices in label_inds for this cluster
+    iset_lbl_iset_inds = None   # for each cluster a (np.array-)list: the indices of the labeled examples in this cluster
 
     iset_edges = None       # number of edges in each cluster
     iset_vertices = None    # number of vertices in each cluster
@@ -59,15 +59,18 @@ class TCRFR_lbpa_iset(TCRFR_lbpa):
         self.data_means = np.zeros( (self.feats, self.num_isets), dtype=np.float64)
         self.data_iset = np.zeros(self.samples, dtype=np.int32)
         self.iset_lbl_label_inds = []
-        self.iset_lbl_sample_inds = []
+        self.iset_lbl_iset_inds = []
 
         for i in range(self.num_isets):
             # calculate cluster means
             self.iset_vertices[i] = self.isets[i].size
             self.data_means[:, i] = np.mean(self.data[:, self.isets[i]], axis=1)
-            inds = np.intersect1d(self.label_inds, self.isets[i])
-            self.iset_lbl_sample_inds.append(inds) # these are the sample inds for the labeled examples
 
+            inds = np.intersect1d(self.label_inds, self.isets[i])
+            # indices of labels in this iset
+            self.iset_lbl_iset_inds.append(argwhere_values_in_array(inds, self.isets[i]))
+            # indices of labels in label_inds
+            self.iset_lbl_label_inds.append(argwhere_values_in_array(inds, self.label_inds))
             # this works only if labels are sorted
             # inds = np.searchsorted(self.label_inds, inds) # find the indices of 'inds' in 'label_inds'
 
@@ -110,8 +113,8 @@ class TCRFR_lbpa_iset(TCRFR_lbpa):
         print('There are {0} disjunct clusters.'.format(len(self.isets)))
         print('-------------------------------')
         print('Stats samples (total={0}):'.format(self.samples))
-        print('- min #samples within cluster  : {0}'.format(stats[0]))
-        print('- max #samples within cluster  : {0}'.format(stats[1]))
+        print('- min  #samples within cluster : {0}'.format(stats[0]))
+        print('- max  #samples within cluster : {0}'.format(stats[1]))
         print('- mean #samples within cluster : {0:1.2f}'.format(means))
         print('-------------------------------')
         print('Stats labels (total={0}):'.format(self.labels.size))
@@ -119,7 +122,13 @@ class TCRFR_lbpa_iset(TCRFR_lbpa):
         print('- max #labels within clusters    : {0}'.format(stats[3]))
         print('- min #labels in cluster that have labels : {0}'.format(stats[4]))
         print('-------------------------------')
-        print('- Map inference scheme : {0}'.format(self.map_iset_inference_scheme))
+        print('Map inference schemes: (for {0} isets)'.format(self.num_isets))
+        print('- Inference types used: {0}'.format(np.unique(self.isets_map_type).size))
+        print('- (a) Full : {0}'.format(np.sum(np.array(self.isets_map_type) == self.MAP_ISET_FULL)))
+        print('- (b) None : {0}'.format(np.sum(np.array(self.isets_map_type) == self.MAP_ISET_NONE)))
+        print('- (c) Mean : {0}'.format(np.sum(np.array(self.isets_map_type) == self.MAP_ISET_MEAN)))
+        print('- (d) Indep: {0}'.format(np.sum(np.array(self.isets_map_type) == self.MAP_ISET_INDEP)))
+        print('- (e) 1-Lbl: {0}'.format(np.sum(np.array(self.isets_map_type) == self.MAP_ISET_LBL)))
         print('===============================')
 
     @profile
@@ -129,20 +138,6 @@ class TCRFR_lbpa_iset(TCRFR_lbpa):
 
         iu = u.reshape((self.feats, self.S), order='F')
         iv = v[self.trans_d_full*self.trans_n:].reshape((self.feats, self.S), order='F')
-
-        # infer latent states based on the means, except for single label cluster, then replace the mean
-        # by the single label
-        if self.map_iset_inference_scheme == self.MAP_ISET_MEAN_LBL:
-            type1_inds = self.label_inds[self.iset_type1_lbl]
-            map_objs = np.zeros((self.S, len(self.isets)))
-            for s in range(self.S):
-                map_objs[s, :] = (1.0 - self.reg_theta)*iv[:, s].dot(self.data_means)
-                map_objs[s, self.iset_type1] = (1.0 - self.reg_theta)*iv[:, s].dot(self.data[:, type1_inds])
-                f_squares = self.labels[self.iset_type1_lbl] - iu[:, s].dot(self.data[:, type1_inds])
-                map_objs[s, self.iset_type1] -= self.reg_theta/2. * f_squares*f_squares
-            # to expand
-            latent_means = np.argmax(map_objs, axis=0)
-            self.latent = latent_means[self.data_iset]
 
         # Main inference loop: go through each iset/cluster and apply the
         # corresponding inference method
@@ -155,25 +150,41 @@ class TCRFR_lbpa_iset(TCRFR_lbpa):
                               self.trans_mtx2vec_full, self.verbosity_level)
                 self.latent[self.isets[i]] = lats[self.isets[i]]
 
-            # (B) infer states based only the mean of the iset
-            if self.isets_map_type[i] == self.MAP_ISET_MEAN:
+            # (B) None. Do not infer anything, just use the fixed latent states
+            if self.isets_map_type[i] == self.MAP_ISET_NONE:
+                self.latent[self.isets[i]] = self.latent_fixed[self.isets[i]]
 
-            # (B) infer states based only the mean of the iset
+            # (C) infer states based only the mean of the iset
             if self.isets_map_type[i] == self.MAP_ISET_MEAN:
                 map_obj = (1.0 - self.reg_theta)*iv[:, s].dot(self.data_means[:, i])
                 self.latent[self.isets[i]] = np.argmax(map_obj)
 
-            # (C) infer independent
+            # (D) infer independent
             if self.isets_map_type[i] == self.MAP_ISET_INDEP:
+                # Here, we need:
+                # (a) the indices of iset-labels in label_inds (=iset_lbl_label_inds)
+                # (b) the indices of iset-labels in data (=data_lbl_inds)
+                # (c) the indices of iset-labels in iset
+                y = self.labels[self.iset_lbl_label_inds]
+                data_lbl_inds = self.labels_inds[self.iset_lbl_label_inds]
+
                 map_objs = np.zeros((self.S, self.isets[i].size))
                 for s in range(self.S):
                     map_objs[s, :] = (1.0 - self.reg_theta)*iv[:, s].dot(self.data[:, self.isets[i]])
-                    f_squares = self.labels[self.iset_lbl_label_inds] - iu[:, s].dot(self.data[:, self.iset_lbl_sample_inds[i]])
-                    map_objs[s, ] -= self.reg_theta/2. * f_squares*f_squares
+                    f_squares = y - iu[:, s].dot(self.data[:, data_lbl_inds])
+                    map_objs[s, self.iset_lbl_iset_inds] -= self.reg_theta/2. * f_squares*f_squares
                 self.latent[self.isets[i]] = np.argmax(map_objs, axis=0)
 
-            # (D) single label inference
+            # (E) single label inference
             if self.isets_map_type[i] == self.MAP_ISET_LBL:
+                y = self.labels[self.iset_lbl_label_inds[0]]
+                data_lbl_ind = self.labels_inds[self.iset_lbl_label_inds[0]]
+                map_obj = np.zeros(self.S)
+                for s in range(self.S):
+                    map_objs[s] = (1.0 - self.reg_theta)*iv[:, s].dot(self.data[:, data_lbl_ind])
+                    f_squares = y - iu[:, s].dot(self.data[:, data_lbl_inds])
+                    map_objs[s] -= self.reg_theta/2. * f_squares*f_squares
+                self.latent[self.isets[i]] = np.argmax(map_obj)
 
         # fix the latent states if defined
         if self.verbosity_level >= 2:

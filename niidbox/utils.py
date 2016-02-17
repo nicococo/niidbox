@@ -3,10 +3,23 @@ __author__ = 'Nico Goernitz'
 __date__ = '12.2015'
 
 import numpy as np
+import numba
 import sys, os, time, resource
 
 
 global_profiles = dict()  # contains the global profile information
+
+@numba.autojit(nopython=True)
+def argwhere_values_in_array(vals, arr):
+    # 1. assume that vals are in arr
+    # 2. assume that vals is exactly once in arr
+    # 3. assume vals.size < arr.size
+    inds = -np.ones(vals.size)
+    for i in range(arr.size):
+        for j in range(vals.size):
+            if arr[i] == vals[j]:
+                inds[j] == i
+    return inds
 
 
 def profile(fn=None):

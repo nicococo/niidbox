@@ -107,6 +107,43 @@ def test_transition_conversion():
 
 
 @with_setup(setup=partial(setup, exms=16, train=0, deps=2, add_intercept=True))
+def test_iset_map_types():
+    print "Test iset map types setting."
+    # setup cluster 0 = labeled, 1 = unlabeled (2 latent states)
+    cluster = [np.arange(0, 10), np.arange(10, 16)]
+    A[9, 10] = 0
+    A[10, 9] = 0
+    print z
+    assert any(z[:6]==0) and any(z[6:16]==1)
+    labeled_inds = np.arange(0, 10)
+
+    names = ['full','none','mean','indp','1lbl']
+    types = [TCRFR_lbpa_iset.MAP_ISET_FULL, TCRFR_lbpa_iset.MAP_ISET_NONE,
+             TCRFR_lbpa_iset.MAP_ISET_MEAN, TCRFR_lbpa_iset.MAP_ISET_INDEP, TCRFR_lbpa_iset.MAP_ISET_LBL]
+
+    REPS = 10
+    res = []
+    for i in range(REPS):
+        a = np.random.randint(0, len(types))
+        b = np.random.randint(0, len(types))
+        map_types = [types[a], types[b]]
+        lbpa_iset = TCRFR_lbpa_iset(cluster, map_types, x.T, y[labeled_inds], labeled_inds, states=2, A=A, \
+                               reg_theta=0.6, reg_gamma=1., trans_sym=[1])
+        lbpa_iset.fit(use_grads=False)
+        res.append([a, b, lbpa_iset.latent])
+
+    print '------------'
+    inds = np.zeros(y.size, dtype=np.int8)
+    inds[labeled_inds] = 1
+    print inds
+    print z
+    print '------------'
+    for r in res:
+        print names[r[0]], names[r[1]], r[2].tolist()
+    print '------------'
+
+
+@with_setup(setup=partial(setup, exms=16, train=0, deps=2, add_intercept=True))
 def test_cluster_setting():
     print "Test Cluster setting."
     # setup cluster 0 = labeled, 1 = unlabeled (2 latent states)
@@ -121,7 +158,8 @@ def test_cluster_setting():
                            reg_theta=0.6, reg_gamma=1., trans_sym=[1])
     qp.fit(use_grads=False)
 
-    lbpa_iset = TCRFR_lbpa_iset(cluster, x.T, y[labeled_inds], labeled_inds, states=2, A=A, \
+    map_types = [TCRFR_lbpa_iset.MAP_ISET_FULL, TCRFR_lbpa_iset.MAP_ISET_FULL]
+    lbpa_iset = TCRFR_lbpa_iset(cluster, map_types, x.T, y[labeled_inds], labeled_inds, states=2, A=A, \
                            reg_theta=0.6, reg_gamma=1., trans_sym=[1])
     lbpa_iset.fit(use_grads=False)
 
@@ -153,7 +191,8 @@ def test_cluster_large_setting():
                            reg_theta=0.9, reg_gamma=1., trans_sym=[1])
     #qp.fit(use_grads=False)
 
-    lbpa_iset = TCRFR_lbpa_iset(cluster, x.T, y[labeled_inds], labeled_inds, states=2, A=A, \
+    map_types = [TCRFR_lbpa_iset.MAP_ISET_FULL, TCRFR_lbpa_iset.MAP_ISET_FULL]
+    lbpa_iset = TCRFR_lbpa_iset(cluster, map_types, x.T, y[labeled_inds], labeled_inds, states=2, A=A, \
                            reg_theta=0.9, reg_gamma=1., trans_sym=[1])
     lbpa_iset.fit(use_grads=False)
 
@@ -170,6 +209,8 @@ def test_cluster_fixed_latent_states():
     print "Test Cluster setting."
     # setup cluster 0 = labeled, 1 = unlabeled (2 latent states)
     cluster = [np.arange(0, 32)]
+    map_types = [TCRFR_lbpa_iset.MAP_ISET_FULL]
+
     labeled_inds = np.random.permutation(32)
     labeled_inds = labeled_inds[:8]
 
@@ -177,7 +218,7 @@ def test_cluster_fixed_latent_states():
                            reg_theta=0.8, reg_gamma=1., trans_sym=[1])
     qp.fit(use_grads=False)
 
-    lbpa_iset = TCRFR_lbpa_iset(cluster, x.T, y[labeled_inds], labeled_inds, states=2, A=A, \
+    lbpa_iset = TCRFR_lbpa_iset(cluster, map_types, x.T, y[labeled_inds], labeled_inds, states=2, A=A, \
                            reg_theta=0.8, reg_gamma=1., trans_sym=[1], verbosity_level=3)
     fixed = -np.ones(y.size, dtype=np.int)
     fixed[4:10] = z[4:10]
