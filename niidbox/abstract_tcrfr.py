@@ -300,7 +300,7 @@ class AbstractTCRFR(object):
 
     def em_estimate_v_grad_callback(self, v, psi, boolean):
         vn = self.unpack_v(v)
-        return .5 * vn.T.dot(self.Q) - psi + self.log_partition_derivative(vn)
+        return vn.T.dot(self.Q) - psi + self.log_partition_derivative(vn)
 
     def em_estimate_v(self, v, psi, use_grads=True):
         if use_grads and np.sum(self.trans_sym)>0:
