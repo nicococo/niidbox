@@ -537,5 +537,14 @@ def generate_param_set(set_name = 'full'):
             methods.append(method_tcrfr_lbpa)
             params.append(param_tcrfr_pl)
 
+    if 'theta' in set_name:
+        tcrfr_lambda = [0.001]
+        tcrfr_gamma = [1.0]
+        tcrfr_k2 = [4]
+        for i in [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]:
+            param_tcrfr_pl = parameter_combinations([[i], tcrfr_lambda, tcrfr_gamma, tcrfr_k2])
+            methods.append(method_tcrfr_lbpa)
+            params.append(param_tcrfr_pl)
+
     return methods, params
 

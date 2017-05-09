@@ -78,15 +78,21 @@ def test_smiley():
                         A[idx, idx2] = 1
                         A[idx2, idx] = 1
 
-    qp   = TCRFR_QP(x.T.copy(), y[linds].copy(), linds, states=2, A=A,
-                    reg_gamma=10000., reg_theta=0.85, trans_sym=[1])
-    u = np.random.randn(qp.get_num_feats()*qp.S)
-    v = np.random.randn(qp.get_num_compressed_dims())
+    # qp   = TCRFR_QP(x.T.copy(), y[linds].copy(), linds, states=2, A=A,
+    #                 reg_gamma=10000., reg_theta=0.95, trans_sym=[1], trans_regs=[[20., 4.]])
+
+    yyy = 1.0*np.ones(x.shape[0])
+    print x.shape
+    qp   = TCRFR_QP(x[:, 0].reshape((x.shape[0], 1)).T.copy(), yyy.copy(), np.arange(x.shape[0]), states=2, A=A,
+                    reg_lambda=2.*(x.shape[0]*0.99), reg_gamma=10000., reg_theta=0.85, trans_sym=[1], trans_regs=[[20., 4.]])
+    qp.set_log_partition(qp.LOGZ_PL_SUM)
+    # u = np.random.randn(qp.get_num_feats()*qp.S)
+    # v = np.random.randn(qp.get_num_compressed_dims())
     #np.savez('../../Projects/hotstart.npz', start=(u, v, linds))
     (u, v, linds) = np.load('../../Projects/hotstart.npz')['start']
 
-    # qp.fit(use_grads=False, hotstart=(u, v), auto_adjust=False)
-    # qp.fit(use_grads=False, hotstart=None, auto_adjust=True)
+    # qp.fit(use_grads=False, hotstart=(u, v), auto_adjust=True)
+    qp.fit(use_grads=False, hotstart=None, auto_adjust=False)
 
     lbpa = TCRFR_lbpa(x.T.copy(), y[linds].copy(), linds,  states=2, A=A,
                       reg_gamma=10000., reg_theta=0.49995, trans_sym=[1], trans_regs=[[20., 4.]])
@@ -111,7 +117,7 @@ def test_smiley():
     plt.imshow(z.reshape((height, width), order='C'))
     plt.subplot(1, 7, 4)
     plt.imshow(lbpa.latent.reshape((height, width), order='C'))
-    plt.title('LBP')
+    plt.title('LBPA')
     plt.subplot(1, 7, 5)
     plt.imshow(kmeans.labels_.reshape((height, width), order='C'))
     plt.title('KMeans')
@@ -120,6 +126,7 @@ def test_smiley():
     plt.title('QP')
     plt.subplot(1, 7, 7)
     res, _ = lbpa.predict()
+    plt.title('LBPA prediction')
 
     print 'Labels:', linds.size
     print 'RESULT:', np.sum((res - y)*(res - y))/y.size

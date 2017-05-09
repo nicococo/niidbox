@@ -106,8 +106,8 @@ class AbstractTCRFR(object):
         self.latent_fixed_inds = []
 
         # some transition inits
-        self.trans_d_sym = np.round(self.S * (self.S - 1.) / 2. + self.S)
-        self.trans_d_full = np.round(self.S * self.S)
+        self.trans_d_sym = np.int(np.round(self.S * (self.S - 1.) / 2. + self.S))
+        self.trans_d_full = np.int(np.round(self.S * self.S))
         # mark transition matrices as symmetric
         if len(trans_sym) == 1:
             self.trans_sym = trans_sym[0]*np.ones(self.trans_n, dtype='i')
@@ -457,6 +457,7 @@ class AbstractTCRFR(object):
         for i in range(self.trans_n):
             if self.trans_sym[i] == 1:
                 # print ".................................................."
+                # print self.trans_d_sym, self.trans_d_full
                 # print v[cnt:cnt+self.trans_d_sym]
                 # print self.trans_vec2vec_mtx.dot(v[cnt:cnt+self.trans_d_sym]).reshape((self.S, self.S), order='C')
                 # print ".................................................."

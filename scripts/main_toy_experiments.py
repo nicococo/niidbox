@@ -139,9 +139,9 @@ def plot_fractions(fname):
     # reps=reps, train_fracs=train_fracs, measure_names=measure_names,
     # means=res_means, stds=res_stds, datapoints=datapoints)
     plt.figure(1)
-    names = foo['method_names']
-    names[-1] = 'MoE (FlexMix)'
-    names[0] = 'Optimal'
+    # names = foo['method_names']
+    # names[-1] = 'MoE (FlexMix)'
+    # names[0] = 'Optimal'
 
     styles = [['--o', 4, 4, [0.9, 0.2, 0.1]], # lower bound
               [ '-o', 3, 4, [0.4, 0.4, 0.9]], # tcrfr qp
@@ -153,7 +153,15 @@ def plot_fractions(fname):
               [ '-s', 4, 4, [0.8, 0.8, 0.6]], # k-means + regression
               [ '-h', 4, 4, [0.9, 0.2, 0.8]], # transd. regr.
               [ '-H', 4, 4, [0.1, 0.8, 0.6]], # flexmix
+              [ '-x', 4, 4, [0.8, 0.8, 0.6]], # -
+              [ '-x', 4, 4, [0.8, 0.1, 0.6]], # -
               ]
+
+    names = ['Optimal']
+    theta = 0.0
+    for i in range(11):
+        names.append('TCRFR (theta={0})'.format(theta))
+        theta += 0.1
 
     for d in range(7):
         plt.subplot(2, 4, d+1)
@@ -289,10 +297,20 @@ def plot_datapoints(fname):
 
 
 if __name__ == '__main__':
-    plot_datapoints('res_acc_dpts_20.npz')
+    # plot_datapoints('res_acc_dpts_20.npz')
     # plot_states('res_acc_states_20.npz')
     # plot_fractions('res_acc_fracs_20.npz')
     # plot_neighbors('res_acc_fracs_neighb_20.npz')
+
+    # plot_fractions('res_acc_fracs_theta_10.npz')
+
+    # accs_fraction('res_acc_fracs_theta_10',
+    #                 reps=10,
+    #                 datapoints=800,
+    #                 train_fracs=[0.05, 0.1, 0.2, 0.3, 0.5, 0.75],
+    #                 states=2,
+    #                 method_set='lb,theta')
+
     # accs_fraction('res_acc_fracs_neighb_20',
     #                 reps=20,
     #                 datapoints=800,
@@ -313,9 +331,18 @@ if __name__ == '__main__':
     #                 # train_fracs=[0.05, 0.75],
     #                 states=2,
     #                 method_set='lb,tcrfr_lbpa,tcrfr_qp,rr,svr,ksvr,laprls,krr,tr,flexmix')
+
     # accs_datapoints('res_acc_dpts_20',
     #                 reps=20,
     #                 datapoints=[50, 100, 200, 400, 800, 1000],
     #                 train_fracs=0.25,
     #                 states=2,
     #                 method_set='lb,tcrfr_lbpa,tcrfr_qp')
+
+
+    accs_datapoints('res_acc_dpts_20',
+                    reps=1,
+                    datapoints=[50, 100, 200, 400, 800, 1000],
+                    train_fracs=0.25,
+                    states=2,
+                    method_set='lb,tcrfr_lbpa,tcrfr_qp')
