@@ -16,13 +16,14 @@ if __name__ == '__main__':
     # Generate the data set
     # ---------------------------
     z = np.append(np.ones(EXMS_C0)*0, np.ones(EXMS_C1)*1)
-    x = np.zeros((EXMS_C0 + EXMS_C1, 3))
+    x = np.zeros((EXMS_C0 + EXMS_C1, 2))
     x[:, 0] = np.append(np.random.randn(EXMS_C0) - 1, np.random.randn(EXMS_C1) + 1)
     x[:, 1] = np.append(np.random.randn(EXMS_C0) - 3, np.random.randn(EXMS_C1) - 1)
     # x[:, 1] = 0.25*x[:, 0]*z + 0.5*np.append(np.random.randn(EXMS_C0)*0.1, np.random.randn(EXMS_C1)*0.1 )
     # x[:, 1] = z+ 0.5*np.append(np.random.randn(EXMS_C0)*0.1, np.random.randn(EXMS_C1)*0.1 )
     # x[:, 1] = z
     # x[:, 2] = 1.
+    x = x - np.mean(x, axis=0)
     num_exms = x.shape[0]
 
     # ---------------------------
@@ -48,10 +49,12 @@ if __name__ == '__main__':
     theta_vals = np.linspace(0, 1, THETAS)
     theta_vals = [0., 0.05, 0.1, 0.2, 1.0]
     zs = np.zeros((THETAS, num_exms))
+    v = []
     for r in range(REPS):
         for t in range(THETAS):
             qp = LCCAD(x.T, states=2, A=A, reg_theta=theta_vals[t])
             qp.fit(auto_adjust=True, use_grads=False)
+            v.append(qp.unpack_v(qp.v)[:4])
             scores[r, t, :], _ = qp.predict()
             z_inv = z.copy()
             z_inv[z == 0] = 1.
@@ -64,6 +67,8 @@ if __name__ == '__main__':
     print np.mean(res, axis=0)
     print '\n --- \n'
     print np.mean(res / np.float(z.size), axis=0)
+
+    print v
 
     for t in range(THETAS):
         plt.subplot(2, THETAS, t+1)

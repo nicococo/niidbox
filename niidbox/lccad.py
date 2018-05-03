@@ -13,7 +13,7 @@ class LCCAD(AbstractTCRFR):
 
     def __init__(self, data, states, A, reg_theta=0.5, reg_gamma=1.0, verbosity_level=1):
         AbstractTCRFR.__init__(self, data, np.zeros(data.shape[1]), np.arange(data.shape[1]), states, A,
-                 reg_theta, 1.0, reg_gamma, [[2.0, 1.0]], [1], verbosity_level)
+                 reg_theta, 1.0, reg_gamma, [[10.0, 1.0]], [1], verbosity_level)
 
     @profile
     def map_inference(self, u, v):
