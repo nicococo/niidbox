@@ -52,7 +52,7 @@ if __name__ == '__main__':
     v = []
     for r in range(REPS):
         for t in range(THETAS):
-            qp = LCCAD(x.T, states=2, A=A, reg_theta=theta_vals[t])
+            qp = LCCAD(x.T, states=2, A=A, reg_theta=theta_vals[t], trans_reg=[[10.0, 1.0]])
             qp.fit(auto_adjust=True, use_grads=False)
             v.append(qp.unpack_v(qp.v)[:4])
             scores[r, t, :], _ = qp.predict()
@@ -71,8 +71,10 @@ if __name__ == '__main__':
     print v
 
     for t in range(THETAS):
-        plt.subplot(2, THETAS, t+1)
+        plt.subplot(2, THETAS, t+1, aspect='equal')
         plt.title('theta={0}'.format(theta_vals[t]))
+        plt.axis('equal')
+
         plt.plot(x[z==0, 0], x[z==0, 1], '.b', linewidth=1)
         plt.plot(x[z==1, 0], x[z==1, 1], '.r', linewidth=1)
         plt.plot(qp.u[0, 0], qp.u[1, 0], 'og', linewidth=2)
@@ -90,6 +92,7 @@ if __name__ == '__main__':
 
         # anomaly scores
         plt.subplot(2, THETAS, THETAS + t + 1)
+        plt.axis('equal')
 
         s = np.mean(scores[:, t, :], axis=0)
         # print scores[0,t,:]
@@ -100,6 +103,7 @@ if __name__ == '__main__':
         s -= 0.4
 
         plt.scatter(x[:, 0], x[:, 1], np.sign(s*8.), 'k', linewidth=1)
+
 
         #
         # plt.plot(x[z==0,0], x[z==0,1], '.r', linewidth=2)

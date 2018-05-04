@@ -11,9 +11,9 @@ class LCCAD(AbstractTCRFR):
     """ Latent-class Contextual Anomaly Detector.
     """
 
-    def __init__(self, data, states, A, reg_theta=0.5, reg_gamma=1.0, verbosity_level=1):
+    def __init__(self, data, states, A, reg_theta=0.5, reg_gamma=1.0, trans_reg=[[1.0, 1.0]], verbosity_level=1):
         AbstractTCRFR.__init__(self, data, np.zeros(data.shape[1]), np.arange(data.shape[1]), states, A,
-                 reg_theta, 1.0, reg_gamma, [[10.0, 1.0]], [1], verbosity_level)
+                 reg_theta, 1.0, reg_gamma, trans_reg, [1], verbosity_level)
 
     @profile
     def map_inference(self, u, v):
@@ -26,6 +26,16 @@ class LCCAD(AbstractTCRFR):
                                       self.trans_mtx2vec_full, self.verbosity_level)
 
         return self.get_joint_feature_maps()
+
+    def get_hotstart(self):
+        self.latent = np.random.randint(0, self.S, self.samples)
+
+        phis, psi = self.get_joint_feature_maps()
+        # point in the direction of psi (unpacked)
+        _, v = self.em_estimate_v(np.zeros(self.get_num_compressed_dims()), psi, use_grads=False)
+        # estimate regression parameters
+        _, u = self.em_estimate_u(phis[:, self.label_inds].T)
+        return u, v
 
     @profile
     def get_joint_feature_maps(self, latent=None):
